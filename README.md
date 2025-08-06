@@ -44,3 +44,4 @@ However, please be aware that the extension still collects data about your brows
 - You can opt-out of tracking at any time
 - URL hashing ensures your browsing history remains private
 # heyho-browser-ext
+# heyho-browser-ext
