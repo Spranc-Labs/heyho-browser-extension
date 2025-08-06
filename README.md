@@ -1,4 +1,4 @@
-# Tab Tracker
+# Tab Tracker Browser Extension
 
 Tab Tracker is a browser extension that monitors your tab activity to provide insights into your browsing habits. It tracks metrics like how long you spend on each tab, how many times you reload a page, and more.
 
@@ -43,5 +43,3 @@ However, please be aware that the extension still collects data about your brows
 - No data is shared with third parties
 - You can opt-out of tracking at any time
 - URL hashing ensures your browsing history remains private
-# heyho-browser-ext
-# heyho-browser-ext
