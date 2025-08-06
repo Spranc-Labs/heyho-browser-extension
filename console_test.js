@@ -1,6 +1,9 @@
 // Tab Tracker Real-Time Data Viewer
 // Copy and paste this into your browser console to see live data
 
+// Cross-browser API wrapper
+const api = (typeof browser !== 'undefined') ? browser : chrome;
+
 console.log("Tab Tracker Real-Time Data Viewer");
 console.log("==================================");
 
@@ -8,8 +11,8 @@ async function testExtension() {
   try {
     // Test 1: Check current tab tracking
     console.log("\n1. Current Tab Tracking:");
-    const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    const { tabHistory } = await chrome.storage.local.get('tabHistory');
+    const [currentTab] = await api.tabs.query({ active: true, currentWindow: true });
+    const { tabHistory } = await api.storage.local.get('tabHistory');
     
     if (tabHistory && tabHistory[currentTab.id]) {
       console.log("✓ Current tab is being tracked:", tabHistory[currentTab.id]);
@@ -20,7 +23,7 @@ async function testExtension() {
 
     // Test 2: Check tab records
     console.log("\n2. Tab Records:");
-    const { tabRecords } = await chrome.storage.local.get('tabRecords');
+    const { tabRecords } = await api.storage.local.get('tabRecords');
     if (tabRecords && tabRecords.length > 0) {
       console.log(`✓ Found ${tabRecords.length} tab records:`);
       tabRecords.slice(-5).forEach((record, index) => {
@@ -39,7 +42,7 @@ async function testExtension() {
 
     // Test 3: Check opt-out status
     console.log("\n3. Tracking Status:");
-    const { trackingOptOut } = await chrome.storage.local.get('trackingOptOut');
+    const { trackingOptOut } = await api.storage.local.get('trackingOptOut');
     console.log(`Tracking opt-out: ${trackingOptOut ? 'ENABLED (tracking disabled)' : 'DISABLED (tracking enabled)'}`);
 
     // Test 4: Show all tracked tabs
@@ -60,7 +63,7 @@ async function testExtension() {
 
     // Test 5: Storage usage
     console.log("\n5. Storage Usage:");
-    chrome.storage.local.getBytesInUse(['tabHistory', 'journalEntries', 'trackingOptOut'], (bytes) => {
+    api.storage.local.getBytesInUse(['tabHistory', 'journalEntries', 'trackingOptOut'], (bytes) => {
       console.log(`Storage used: ${bytes} bytes`);
     });
 
@@ -74,22 +77,22 @@ testExtension();
 
 // Utility functions you can call manually:
 window.clearRecords = async function() {
-  await chrome.storage.local.remove('tabRecords');
+  await api.storage.local.remove('tabRecords');
   console.log("Tab records cleared!");
 };
 
 window.clearAllData = async function() {
-  await chrome.storage.local.clear();
+  await api.storage.local.clear();
   console.log("All extension data cleared!");
 };
 
 window.enableTracking = async function() {
-  await chrome.storage.local.set({ trackingOptOut: false });
+  await api.storage.local.set({ trackingOptOut: false });
   console.log("Tracking enabled!");
 };
 
 window.disableTracking = async function() {
-  await chrome.storage.local.set({ trackingOptOut: true });
+  await api.storage.local.set({ trackingOptOut: true });
   console.log("Tracking disabled!");
 };
 

@@ -1,7 +1,10 @@
+// Cross-browser API wrapper
+const api = (typeof browser !== 'undefined') ? browser : chrome;
+
 document.addEventListener('DOMContentLoaded', async () => {
-  const [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const { tabHistory, tabRecords } = await chrome.storage.local.get(['tabHistory', 'tabRecords']);
-  let { trackingOptOut } = await chrome.storage.local.get('trackingOptOut');
+  const [currentTab] = await api.tabs.query({ active: true, currentWindow: true });
+  const { tabHistory, tabRecords } = await api.storage.local.get(['tabHistory', 'tabRecords']);
+  let { trackingOptOut } = await api.storage.local.get('trackingOptOut');
 
   const optOutCheckbox = document.getElementById('opt-out');
   const currentTabDiv = document.getElementById('current-tab');
@@ -15,7 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   optOutCheckbox.addEventListener('change', (e) => {
     trackingOptOut = e.target.checked;
-    chrome.storage.local.set({ trackingOptOut: trackingOptOut });
+    api.storage.local.set({ trackingOptOut: trackingOptOut });
     updateAllDisplays();
   });
 
@@ -188,7 +191,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Auto-refresh every 5 seconds to show real-time data
   setInterval(async () => {
     const { tabHistory: newTabHistory, tabRecords: newTabRecords } = 
-      await chrome.storage.local.get(['tabHistory', 'tabRecords']);
+      await api.storage.local.get(['tabHistory', 'tabRecords']);
     
     // Update data if changed
     if (JSON.stringify(newTabHistory) !== JSON.stringify(tabHistory) || 
@@ -202,7 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // View complete records button
   viewButton.addEventListener('click', async () => {
     const { tabHistory, tabRecords, closedTabs } = 
-      await chrome.storage.local.get(['tabHistory', 'tabRecords', 'closedTabs']);
+      await api.storage.local.get(['tabHistory', 'tabRecords', 'closedTabs']);
     
     console.log("=== COMPLETE TAB TRACKER RECORDS ===");
     console.log("Active Tabs:", tabHistory);
@@ -313,7 +316,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Export data button  
   exportButton.addEventListener('click', async () => {
     const { tabHistory, tabRecords, closedTabs } = 
-      await chrome.storage.local.get(['tabHistory', 'tabRecords', 'closedTabs']);
+      await api.storage.local.get(['tabHistory', 'tabRecords', 'closedTabs']);
     
     const exportData = {
       exportDate: new Date().toISOString(),
@@ -377,7 +380,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Clear data button
   clearButton.addEventListener('click', async () => {
     if (confirm('Are you sure you want to clear all tracking data?')) {
-             await chrome.storage.local.clear();
+             await api.storage.local.clear();
        console.log("All tracking data cleared!");
        updateAllDisplays();
        alert('All data cleared!');

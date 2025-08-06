@@ -1,18 +1,21 @@
 const tabHistory = {};
 const closedTabs = [];
 
+// Cross-browser API wrapper
+const api = (typeof browser !== 'undefined') ? browser : chrome;
+
 // Check if tracking is opted out
 async function isTrackingOptedOut() {
-  const { trackingOptOut } = await chrome.storage.local.get('trackingOptOut');
+  const { trackingOptOut } = await api.storage.local.get('trackingOptOut');
   return trackingOptOut || false;
 }
 
 // Tab Lifecycle Tracking
-chrome.webNavigation.onCompleted.addListener(async (details) => {
+api.webNavigation.onCompleted.addListener(async (details) => {
   if (details.frameId !== 0) return; // Only track top-level frames
   if (await isTrackingOptedOut()) return; // Respect opt-out
 
-  const tab = await chrome.tabs.get(details.tabId);
+  const tab = await api.tabs.get(details.tabId);
   if (tab.incognito) return;
 
   const url = details.url;
@@ -60,7 +63,7 @@ chrome.webNavigation.onCompleted.addListener(async (details) => {
 // Track the currently active tab globally
 let currentActiveTabId = null;
 
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
+api.tabs.onActivated.addListener(async (activeInfo) => {
   if (await isTrackingOptedOut()) return;
   
   const now = Date.now();
@@ -130,7 +133,7 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
   currentActiveTabId = newActiveTabId;
 });
 
-chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+api.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   if (await isTrackingOptedOut()) return;
   if (tabHistory[tabId]) {
     const now = Date.now();
@@ -186,7 +189,7 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   }
 });
 
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+api.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (tab.incognito) return;
   if (await isTrackingOptedOut()) return;
 
@@ -198,9 +201,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   }
 });
 
-chrome.bookmarks.onCreated.addListener(async (id, bookmark) => {
+api.bookmarks.onCreated.addListener(async (id, bookmark) => {
   if (await isTrackingOptedOut()) return;
-  const tabs = await chrome.tabs.query({url: bookmark.url});
+  const tabs = await api.tabs.query({url: bookmark.url});
   for (const tab of tabs) {
     if (tabHistory[tab.id]) {
       tabHistory[tab.id].bookmarked = true;
@@ -209,11 +212,11 @@ chrome.bookmarks.onCreated.addListener(async (id, bookmark) => {
   }
 });
 
-chrome.windows.onFocusChanged.addListener(async (windowId) => {
+api.windows.onFocusChanged.addListener(async (windowId) => {
   if (await isTrackingOptedOut()) return;
   
   const now = Date.now();
-  const windowFocused = windowId !== chrome.windows.WINDOW_ID_NONE;
+  const windowFocused = windowId !== (api.windows.WINDOW_ID_NONE || -1);
   
   // Update window focus status for all tabs
   Object.values(tabHistory).forEach(tab => {
@@ -229,7 +232,7 @@ chrome.windows.onFocusChanged.addListener(async (windowId) => {
   });
   
   if (windowFocused) {
-    const [tab] = await chrome.tabs.query({active: true, windowId: windowId});
+    const [tab] = await api.tabs.query({active: true, windowId: windowId});
     if (tab && tabHistory[tab.id]) {
       tabHistory[tab.id].lastActive = now;
       console.log("Window focused on tab:", tabHistory[tab.id].url);
@@ -244,7 +247,7 @@ setInterval(async () => {
   if (await isTrackingOptedOut()) return;
   
   const now = Date.now();
-  const [activeTab] = await chrome.tabs.query({active: true, lastFocusedWindow: true});
+  const [activeTab] = await api.tabs.query({active: true, lastFocusedWindow: true});
   
   // Update all tabs with lifetime and stale calculations
   Object.values(tabHistory).forEach(tab => {
@@ -266,7 +269,7 @@ setInterval(async () => {
   // Update active time for currently active tab only
   if (activeTab && tabHistory[activeTab.id]) {
     const tab = tabHistory[activeTab.id];
-    const window = await chrome.windows.get(activeTab.windowId, {populate: false});
+    const window = await api.windows.get(activeTab.windowId, {populate: false});
     
     if (window.focused && tab.isCurrentlyActive) {
       tab.activeSeconds += 5;
@@ -288,14 +291,14 @@ setInterval(async () => {
   if (await isTrackingOptedOut()) return;
   
   // Save tracking data
-  chrome.storage.local.set({ tabHistory, closedTabs });
+  api.storage.local.set({ tabHistory, closedTabs });
   
     // Auto-generate comprehensive records for active tabs
   const now = Date.now();
   for (const [tabId, tabData] of Object.entries(tabHistory)) {
     if (tabData.activeSeconds > 15 && tabData.loadCount >= 1) {
       // Check if we already have a recent record for this tab
-      const { tabRecords } = await chrome.storage.local.get('tabRecords');
+      const { tabRecords } = await api.storage.local.get('tabRecords');
       const records = tabRecords || [];
       
       const lastRecordForTab = records
@@ -336,7 +339,7 @@ setInterval(async () => {
         };
         
         records.push(record);
-        chrome.storage.local.set({ tabRecords: records });
+        api.storage.local.set({ tabRecords: records });
         console.log("Auto-saved record for tab:", tabData.url);
       }
     }
@@ -446,11 +449,11 @@ function categorizeWebsite(url) {
 }
 
 // Context Menu Setup - using try-catch for safety
-chrome.runtime.onInstalled.addListener(() => {
+api.runtime.onInstalled.addListener(() => {
   try {
-    if (chrome.contextMenus) {
-      chrome.contextMenus.removeAll(() => {
-            chrome.contextMenus.create({
+    if (api.contextMenus) {
+      api.contextMenus.removeAll(() => {
+            api.contextMenus.create({
       id: "saveToJournal",
       title: "Save Tab Record",
       contexts: ["page"]
@@ -464,8 +467,8 @@ chrome.runtime.onInstalled.addListener(() => {
 
 // Context Menu Click Handler - using try-catch for safety
 try {
-  if (chrome.contextMenus && chrome.contextMenus.onClicked) {
-          chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (api.contextMenus && api.contextMenus.onClicked) {
+          api.contextMenus.onClicked.addListener(async (info, tab) => {
         try {
           if (info.menuItemId === "saveToJournal" && tabHistory[tab.id]) {
             const tabData = tabHistory[tab.id];
@@ -501,10 +504,10 @@ try {
             console.log("RECORD SAVED:", record);
             
             // Save to records storage
-            const { tabRecords } = await chrome.storage.local.get('tabRecords');
+            const { tabRecords } = await api.storage.local.get('tabRecords');
             const records = tabRecords || [];
             records.push(record);
-            chrome.storage.local.set({ tabRecords: records });
+            api.storage.local.set({ tabRecords: records });
           }
         } catch (error) {
           console.log("Error saving record:", error);
