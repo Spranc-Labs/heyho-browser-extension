@@ -3,8 +3,8 @@
 // It uses the browser.* namespace for cross-browser compatibility via the polyfill.
 
 // Developer mode flag for logging
-// In production builds, this would be set via build process or manifest
-const IS_DEV_MODE = !('update_url' in chrome.runtime.getManifest());
+// Cross-browser detection: development extensions don't have update_url
+const IS_DEV_MODE = !('update_url' in browser.runtime.getManifest());
 
 // Development logging buffer for first 10 events
 const devLogBuffer = [];
@@ -117,8 +117,20 @@ async function setupCleanupAlarm() {
 }
 
 // Run initialization
-initializeStorage();
-setupCleanupAlarm();
+async function initialize() {
+  await initializeStorage();
+  
+  // Run initial cleanup on startup to handle any old data
+  if (IS_DEV_MODE) {
+    console.log('🚀 Running initial cleanup on startup...');
+  }
+  await performCleanup();
+  
+  // Set up recurring cleanup alarm
+  await setupCleanupAlarm();
+}
+
+initialize();
 
 // Tab Event Listeners
 
