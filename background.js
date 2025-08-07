@@ -3,7 +3,8 @@
 // It uses the browser.* namespace for cross-browser compatibility via the polyfill.
 
 // Developer mode flag for logging
-const IS_DEV_MODE = true;
+// In production builds, this would be set via build process or manifest
+const IS_DEV_MODE = !('update_url' in chrome.runtime.getManifest());
 
 // Development logging buffer for first 10 events
 const devLogBuffer = [];
@@ -97,8 +98,27 @@ async function initializeStorage() {
   }
 }
 
-// Run storage initialization
+// Set up daily cleanup alarm
+async function setupCleanupAlarm() {
+  try {
+    // Create daily cleanup alarm that starts 24 hours after extension load
+    // and repeats every 24 hours
+    await browser.alarms.create('daily-cleanup', {
+      delayInMinutes: 24 * 60,      // Start after 24 hours
+      periodInMinutes: 24 * 60      // Repeat every 24 hours
+    });
+    
+    if (IS_DEV_MODE) {
+      console.log('Daily cleanup alarm created successfully');
+    }
+  } catch (error) {
+    console.error('Failed to create cleanup alarm:', error);
+  }
+}
+
+// Run initialization
 initializeStorage();
+setupCleanupAlarm();
 
 // Tab Event Listeners
 
@@ -141,7 +161,74 @@ browser.tabs.onRemoved.addListener((tabId) => {
   logAndSaveEvent(eventObject);
 });
 
-// Keep the alarm listener for future functionality
-browser.alarms.onAlarm.addListener((alarm) => {
-  console.log('Alarm fired!', alarm);
+/**
+ * Performs cleanup of expired events from IndexedDB
+ * Removes events older than 7 days (168 hours)
+ */
+async function performCleanup() {
+  const startTime = Date.now();
+  
+  try {
+    const { getExpiredEvents, deleteEvents } = self.StorageModule;
+    
+    if (IS_DEV_MODE) {
+      console.log('🧹 Starting daily cleanup process...');
+    }
+    
+    // Get expired events (older than 7 days)
+    const expiredEventIds = await getExpiredEvents(168);
+    
+    if (expiredEventIds.length === 0) {
+      if (IS_DEV_MODE) {
+        console.log('✅ Cleanup complete: No expired events found');
+      }
+      return;
+    }
+    
+    if (IS_DEV_MODE) {
+      console.log(`📊 Found ${expiredEventIds.length} expired events to delete`);
+    }
+    
+    // Delete expired events
+    const deletedCount = await deleteEvents(expiredEventIds);
+    
+    const endTime = Date.now();
+    const duration = endTime - startTime;
+    
+    if (IS_DEV_MODE) {
+      console.log('✅ Cleanup complete:', {
+        eventsScanned: expiredEventIds.length,
+        eventsDeleted: deletedCount,
+        durationMs: duration,
+        startTime: new Date(startTime).toISOString(),
+        endTime: new Date(endTime).toISOString()
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Cleanup process failed:', error);
+    
+    if (IS_DEV_MODE) {
+      console.error('Cleanup error details:', {
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+}
+
+// Enhanced alarm listener with cleanup handling
+browser.alarms.onAlarm.addListener(async (alarm) => {
+  if (IS_DEV_MODE) {
+    console.log('⏰ Alarm fired:', alarm.name);
+  }
+  
+  if (alarm.name === 'daily-cleanup') {
+    await performCleanup();
+  } else {
+    if (IS_DEV_MODE) {
+      console.log('Unknown alarm fired:', alarm);
+    }
+  }
 });
