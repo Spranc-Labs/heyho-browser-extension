@@ -1,39 +1,30 @@
 {
-  "manifest_version": 2,
-  "name": "Tab Tracker",
-  "version": "1.0",
-  "description": "Tracks tab activity and generates insights.",
+  "manifest_version": 3,
+  "name": "HeyHo Extension - Analyze browser journey",
+  "version": "1.0.0",
+  "description": "A browser extension to intelligently track browsing habits and generate insights to help users understand and manage their digital activity.",
+  "background": {
+    "scripts": [
+      "browser-polyfill.js", 
+      "src/background/storage.js", 
+      "src/background/config.js",
+      "src/background/events.js",
+      "src/background/listeners.js", 
+      "src/background/cleanup.js",
+      "src/background/init.js",
+      "background.js"
+    ]
+  },
   "permissions": [
     "tabs",
-    "webNavigation",
     "storage",
-    "bookmarks",
-    "contextMenus",
-    "<all_urls>"
+    "idle",
+    "alarms"
   ],
-  "background": {
-    "scripts": ["browser-polyfill.js", "background.js"],
-    "persistent": true
-  },
-  "browser_action": {
-    "default_popup": "popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
-  },
-  "icons": {
-    "16": "icons/icon16.png",
-    "32": "icons/icon32.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  },
   "browser_specific_settings": {
     "gecko": {
-      "id": "tab-tracker@gabrielbrrll.com",
-      "strict_min_version": "78.0"
+      "id": "heyho@bext.com",
+      "strict_min_version": "109.0"
     }
   }
-} 
+}
