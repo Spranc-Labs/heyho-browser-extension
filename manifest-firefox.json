@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "HeyHo Extension - Analyze browser journey",
+  "version": "1.0.0",
+  "description": "A browser extension to intelligently track browsing habits and generate insights to help users understand and manage their digital activity.",
+  "background": {
+    "scripts": ["browser-polyfill.js", "background.js"]
+  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "idle",
+    "alarms"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "heyho@bext.com",
+      "strict_min_version": "109.0"
+    }
+  }
+}
