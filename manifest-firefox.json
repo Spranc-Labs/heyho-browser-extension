@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "A browser extension to intelligently track browsing habits and generate insights to help users understand and manage their digital activity.",
   "background": {
-    "scripts": ["browser-polyfill.js", "background.js"]
+    "scripts": ["browser-polyfill.js", "src/background/storage.js", "background.js"]
   },
   "permissions": [
     "tabs",
