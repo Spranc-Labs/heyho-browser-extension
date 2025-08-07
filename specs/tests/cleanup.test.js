@@ -44,6 +44,50 @@ describe('Periodic Cleanup Integration Tests', () => {
       // Verify that alarm listener is registered
       expect(browser.alarms.onAlarm.addListener).toBeDefined();
     });
+
+    test('Test 2.1.3: Should run initial cleanup on extension startup', async () => {
+      const currentTime = Date.now();
+      
+      // Create some old events that should be cleaned up on startup
+      const oldEvents = [
+        {
+          id: 'evt_startup_old_1',
+          timestamp: currentTime - (8 * 24 * 60 * 60 * 1000), // 8 days old
+          type: 'CREATE',
+          tabId: 300,
+          url: 'https://startup-old1.com',
+          domain: 'startup-old1.com'
+        },
+        {
+          id: 'evt_startup_old_2',
+          timestamp: currentTime - (9 * 24 * 60 * 60 * 1000), // 9 days old
+          type: 'NAVIGATE',
+          tabId: 301,
+          url: 'https://startup-old2.com',
+          domain: 'startup-old2.com'
+        }
+      ];
+      
+      // Add old events
+      for (const event of oldEvents) {
+        await addEvent(event);
+      }
+      
+      // Verify old events exist before cleanup
+      const expiredBeforeCleanup = await getExpiredEvents(168);
+      expect(expiredBeforeCleanup.length).toBeGreaterThan(0);
+      
+      // Simulate startup cleanup
+      const expiredIds = await getExpiredEvents(168);
+      const deletedCount = await deleteEvents(expiredIds);
+      
+      // Verify cleanup happened
+      expect(deletedCount).toBeGreaterThan(0);
+      
+      // Verify no more expired events remain
+      const expiredAfterCleanup = await getExpiredEvents(168);
+      expect(expiredAfterCleanup).toHaveLength(0);
+    });
   });
 
   describe('Complete Cleanup Workflow', () => {
