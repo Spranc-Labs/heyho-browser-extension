@@ -16,7 +16,7 @@ let dbInstance = null;
  * Initializes the IndexedDB database
  * @returns {Promise<IDBDatabase>} Promise that resolves with the database instance
  */
-async function initDB() {
+function initDB() {
   return new Promise((resolve, reject) => {
     if (dbInstance) {
       resolve(dbInstance);
@@ -87,11 +87,19 @@ async function addEvent(eventObject) {
   }
 }
 
+/**
+ * Reset the cached database instance (for testing purposes)
+ * @private
+ */
+function __resetInstance() {
+  dbInstance = null;
+}
+
 // Export functions for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
   // Node.js environment
-  module.exports = { initDB, addEvent };
+  module.exports = { initDB, addEvent, __resetInstance };
 } else {
   // Browser environment - attach to global scope
-  self.StorageModule = { initDB, addEvent };
+  self.StorageModule = { initDB, addEvent, __resetInstance };
 }
