@@ -70,6 +70,64 @@ class MockIDBTransaction {
   }
 }
 
+class MockIDBIndex {
+  constructor(name, keyPath, objectStore) {
+    this.name = name;
+    this.keyPath = keyPath;
+    this._objectStore = objectStore;
+  }
+
+  openCursor(range) {
+    const request = new MockIDBRequest();
+    
+    setTimeout(() => {
+      try {
+        const allEntries = Array.from(this._objectStore._data.entries());
+        let filteredEntries = allEntries;
+        
+        // Apply range filter if provided
+        if (range && range.upper !== undefined) {
+          filteredEntries = allEntries.filter(([_key, value]) => {
+            const indexValue = value[this.keyPath];
+            return indexValue <= range.upper;
+          });
+        }
+        
+        let currentIndex = 0;
+        
+        const cursor = {
+          get primaryKey() {
+            return currentIndex < filteredEntries.length ? filteredEntries[currentIndex][0] : null;
+          },
+          get value() {
+            return currentIndex < filteredEntries.length ? filteredEntries[currentIndex][1] : null;
+          },
+          continue() {
+            currentIndex++;
+            setTimeout(() => {
+              if (currentIndex < filteredEntries.length) {
+                request._succeed(cursor);
+              } else {
+                request._succeed(null);
+              }
+            }, 0);
+          }
+        };
+        
+        if (filteredEntries.length > 0) {
+          request._succeed(cursor);
+        } else {
+          request._succeed(null);
+        }
+      } catch (error) {
+        request._fail(error);
+      }
+    }, 0);
+    
+    return request;
+  }
+}
+
 class MockIDBObjectStore {
   constructor(name) {
     this.name = name;
@@ -101,6 +159,30 @@ class MockIDBObjectStore {
     }, 0);
     
     return request;
+  }
+
+  delete(key) {
+    const request = new MockIDBRequest();
+    
+    setTimeout(() => {
+      try {
+        const existed = this._data.has(key);
+        this._data.delete(key); // Delete regardless (IndexedDB behavior)
+        request._succeed(existed); // Return whether the key existed
+      } catch (error) {
+        request._fail(error);
+      }
+    }, 0);
+    
+    return request;
+  }
+
+  index(name) {
+    const indexInfo = this._indexes.get(name);
+    if (!indexInfo) {
+      throw new Error(`Index '${name}' does not exist`);
+    }
+    return new MockIDBIndex(name, indexInfo.keyPath, this);
   }
 
   createIndex(name, keyPath, options = {}) {
@@ -183,9 +265,45 @@ const mockIndexedDB = {
   }
 };
 
+// Mock IDBKeyRange
+const mockIDBKeyRange = {
+  upperBound(upper, open = false) {
+    return {
+      upper,
+      upperOpen: open,
+      lower: undefined,
+      lowerOpen: false
+    };
+  },
+  lowerBound(lower, open = false) {
+    return {
+      upper: undefined,
+      upperOpen: false,
+      lower,
+      lowerOpen: open
+    };
+  },
+  bound(lower, upper, lowerOpen = false, upperOpen = false) {
+    return {
+      upper,
+      upperOpen,
+      lower,
+      lowerOpen
+    };
+  },
+  only(value) {
+    return {
+      upper: value,
+      upperOpen: false,
+      lower: value,
+      lowerOpen: false
+    };
+  }
+};
+
 // Set up global IndexedDB mock
 global.indexedDB = mockIndexedDB;
-global.IDBKeyRange = {};
+global.IDBKeyRange = mockIDBKeyRange;
 
 // Clean up mocks between tests
 afterEach(() => {
