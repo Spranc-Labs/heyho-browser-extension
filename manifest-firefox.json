@@ -8,6 +8,7 @@
       "browser-polyfill.js", 
       "src/background/storage.js", 
       "src/background/config.js",
+      "src/background/triage.js",
       "src/background/events.js",
       "src/background/listeners.js", 
       "src/background/cleanup.js",
