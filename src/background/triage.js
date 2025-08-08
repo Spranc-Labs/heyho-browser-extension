@@ -42,6 +42,15 @@ function shouldStoreEvent(eventObject) {
 }
 
 // Export for browser environment
-self.TriageModule = {
-  shouldStoreEvent
-};
+if (typeof self !== 'undefined') {
+  self.TriageModule = {
+    shouldStoreEvent
+  };
+}
+
+// Export for Node.js (testing)
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    shouldStoreEvent
+  };
+}
