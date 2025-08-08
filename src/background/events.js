@@ -56,6 +56,12 @@ function createCoreEvent(type, tabId, url = '') {
  * @param {Object} eventObject - CoreEvent to log and save
  */
 async function logAndSaveEvent(eventObject) {
+  // Apply triage filtering - exit early if event should not be stored
+  const { shouldStoreEvent } = self.TriageModule;
+  if (!shouldStoreEvent(eventObject)) {
+    return;
+  }
+
   const { IS_DEV_MODE, devLogBuffer } = self.ConfigModule;
   
   // Dev mode logging

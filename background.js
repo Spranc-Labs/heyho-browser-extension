@@ -6,6 +6,7 @@
 if (typeof importScripts !== 'undefined') {
   importScripts(
     'src/background/config.js',
+    'src/background/triage.js',
     'src/background/events.js', 
     'src/background/listeners.js',
     'src/background/cleanup.js',
