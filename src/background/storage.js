@@ -266,77 +266,8 @@ async function getAllEvents() {
   }
 }
 
-/**
- * Adds or updates a page visit record
- * @param {Object} pageVisit - The page visit object
- * @returns {Promise<void>}
- */
-async function upsertPageVisit(pageVisit) {
-  try {
-    const db = await initDB();
-    
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([PAGE_VISITS_STORE], 'readwrite');
-      const store = transaction.objectStore(PAGE_VISITS_STORE);
-      
-      const request = store.put(pageVisit);
-      
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error(`Failed to upsert page visit: ${request.error}`));
-      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
-    });
-  } catch (error) {
-    throw new Error(`Failed to upsert page visit: ${error.message}`);
-  }
-}
 
-/**
- * Adds or updates a tab aggregate record
- * @param {Object} tabAggregate - The tab aggregate object
- * @returns {Promise<void>}
- */
-async function upsertTabAggregate(tabAggregate) {
-  try {
-    const db = await initDB();
-    
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readwrite');
-      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
-      
-      const request = store.put(tabAggregate);
-      
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(new Error(`Failed to upsert tab aggregate: ${request.error}`));
-      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
-    });
-  } catch (error) {
-    throw new Error(`Failed to upsert tab aggregate: ${error.message}`);
-  }
-}
 
-/**
- * Gets a tab aggregate by tab ID
- * @param {number} tabId - The tab ID
- * @returns {Promise<Object|null>} - The tab aggregate or null if not found
- */
-async function getTabAggregate(tabId) {
-  try {
-    const db = await initDB();
-    
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readonly');
-      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
-      
-      const request = store.get(tabId);
-      
-      request.onsuccess = () => resolve(request.result || null);
-      request.onerror = () => reject(new Error(`Failed to get tab aggregate: ${request.error}`));
-      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
-    });
-  } catch (error) {
-    throw new Error(`Failed to get tab aggregate: ${error.message}`);
-  }
-}
 
 /**
  * Executes multiple operations in a single transaction
@@ -459,7 +390,8 @@ if (typeof module !== 'undefined' && module.exports) {
   // Node.js environment
   module.exports = { 
     initDB, addEvent, getExpiredEvents, deleteEvents, 
-    getAllEvents, upsertPageVisit, upsertTabAggregate, getTabAggregate, executeTransaction,
+    getAllEvents, executeTransaction,
+    getPageVisitsCount, getTabAggregatesCount, getTabAggregatesForProcessing,
     EVENTS_STORE, PAGE_VISITS_STORE, TAB_AGGREGATES_STORE,
     __resetInstance 
   };
@@ -467,7 +399,7 @@ if (typeof module !== 'undefined' && module.exports) {
   // Browser environment - attach to global scope
   self.StorageModule = { 
     initDB, addEvent, getExpiredEvents, deleteEvents,
-    getAllEvents, upsertPageVisit, upsertTabAggregate, getTabAggregate, executeTransaction,
+    getAllEvents, executeTransaction,
     getPageVisitsCount, getTabAggregatesCount, getTabAggregatesForProcessing,
     EVENTS_STORE, PAGE_VISITS_STORE, TAB_AGGREGATES_STORE,
     __resetInstance 
