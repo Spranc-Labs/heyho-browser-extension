@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HeyHo Extension - Debug Panel</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>HeyHo Debug Panel</h1>
+      <div class="version">v1.0.0</div>
+    </header>
+
+    <section class="controls">
+      <h2>Aggregation System</h2>
+      <div class="button-group">
+        <button id="trigger-aggregation" class="btn primary">
+          <span class="icon">⚙️</span>
+          Trigger Aggregation
+        </button>
+        <button id="view-raw-events" class="btn secondary">
+          <span class="icon">📝</span>
+          View Raw Events
+        </button>
+      </div>
+    </section>
+
+    <section class="export">
+      <h2>Data Export</h2>
+      <div class="button-group">
+        <button id="export-page-visits" class="btn secondary">
+          <span class="icon">📄</span>
+          Export Page Visits
+        </button>
+        <button id="export-tab-aggregates" class="btn secondary">
+          <span class="icon">🗂️</span>
+          Export Tab Aggregates
+        </button>
+        <button id="export-all" class="btn accent">
+          <span class="icon">💾</span>
+          Export All Data
+        </button>
+      </div>
+    </section>
+
+    <section class="stats">
+      <h2>System Status</h2>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <div class="stat-label">Raw Events</div>
+          <div class="stat-value" id="events-count">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Page Visits</div>
+          <div class="stat-value" id="visits-count">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Tab Aggregates</div>
+          <div class="stat-value" id="tabs-count">-</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-label">Last Aggregation</div>
+          <div class="stat-value" id="last-aggregation">Never</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="logs">
+      <h2>Activity Log</h2>
+      <div id="log-container" class="log-container">
+        <div class="log-entry">Ready to aggregate data...</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

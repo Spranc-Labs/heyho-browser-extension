@@ -215,6 +215,36 @@ class MockIDBObjectStore {
     return request;
   }
 
+  getAll() {
+    const request = new MockIDBRequest();
+    
+    setTimeout(() => {
+      try {
+        const values = Array.from(this._data.values());
+        request._succeed(values);
+      } catch (error) {
+        request._fail(error);
+      }
+    }, 0);
+    
+    return request;
+  }
+
+  count() {
+    const request = new MockIDBRequest();
+    
+    setTimeout(() => {
+      try {
+        const count = this._data.size;
+        request._succeed(count);
+      } catch (error) {
+        request._fail(error);
+      }
+    }, 0);
+    
+    return request;
+  }
+
   delete(key) {
     const request = new MockIDBRequest();
     

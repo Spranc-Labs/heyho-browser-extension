@@ -11,11 +11,16 @@
       "src/background/triage.js",
       "src/background/events.js",
       "src/background/aggregator.js",
+      "src/background/debug.js",
       "src/background/listeners.js", 
       "src/background/cleanup.js",
       "src/background/init.js",
       "background.js"
     ]
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "HeyHo Extension Debug Panel"
   },
   "permissions": [
     "tabs",

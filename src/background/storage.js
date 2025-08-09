@@ -378,6 +378,75 @@ async function executeTransaction(operations) {
 }
 
 /**
+ * Gets count of page visits
+ * @returns {Promise<number>} - Number of page visits
+ */
+async function getPageVisitsCount() {
+  try {
+    const { initDB } = self.StorageModule || { initDB };
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([PAGE_VISITS_STORE], 'readonly');
+      const store = transaction.objectStore(PAGE_VISITS_STORE);
+      const request = store.count();
+      
+      request.onsuccess = () => resolve(request.result || 0);
+      request.onerror = () => reject(new Error(`Failed to count page visits: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get page visits count: ${error.message}`);
+  }
+}
+
+/**
+ * Gets all tab aggregates for processing
+ * @returns {Promise<Array>} - Array of all tab aggregates
+ */
+async function getTabAggregatesForProcessing() {
+  try {
+    const { initDB } = self.StorageModule || { initDB };
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readonly');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+      const request = store.getAll();
+      
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(new Error(`Failed to get tab aggregates: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get tab aggregates for processing: ${error.message}`);
+  }
+}
+
+/**
+ * Gets count of tab aggregates
+ * @returns {Promise<number>} - Number of tab aggregates
+ */
+async function getTabAggregatesCount() {
+  try {
+    const { initDB } = self.StorageModule || { initDB };
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readonly');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+      const request = store.count();
+      
+      request.onsuccess = () => resolve(request.result || 0);
+      request.onerror = () => reject(new Error(`Failed to count tab aggregates: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get tab aggregates count: ${error.message}`);
+  }
+}
+
+/**
  * Reset the cached database instance (for testing purposes)
  * @private
  */
@@ -399,6 +468,7 @@ if (typeof module !== 'undefined' && module.exports) {
   self.StorageModule = { 
     initDB, addEvent, getExpiredEvents, deleteEvents,
     getAllEvents, upsertPageVisit, upsertTabAggregate, getTabAggregate, executeTransaction,
+    getPageVisitsCount, getTabAggregatesCount, getTabAggregatesForProcessing,
     EVENTS_STORE, PAGE_VISITS_STORE, TAB_AGGREGATES_STORE,
     __resetInstance 
   };
