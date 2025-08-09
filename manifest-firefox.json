@@ -10,6 +10,7 @@
       "src/background/config.js",
       "src/background/triage.js",
       "src/background/events.js",
+      "src/background/aggregator.js",
       "src/background/listeners.js", 
       "src/background/cleanup.js",
       "src/background/init.js",
