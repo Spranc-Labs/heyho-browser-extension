@@ -59,7 +59,7 @@ async function processEvents() {
     console.log('Starting event aggregation process...');
     
     // Step 1: Get all events sorted by timestamp
-    const { getAllEvents } = self.StorageModule;
+    const { getAllEvents, getTabAggregatesForProcessing } = self.StorageModule;
     const events = await getAllEvents();
     
     if (events.length === 0) {
@@ -72,8 +72,15 @@ async function processEvents() {
     // Step 2: Sort events chronologically
     events.sort((a, b) => a.timestamp - b.timestamp);
     
-    // Step 3: Load current state
+    // Step 3: Load current state and existing tab aggregates
     const activeVisit = await getActiveVisit();
+    const existingTabAggregates = await getTabAggregatesForProcessing();
+    const tabAggregatesMap = new Map();
+    
+    // Build map of existing tab aggregates
+    existingTabAggregates.forEach(ta => {
+      tabAggregatesMap.set(ta.tabId, ta);
+    });
     
     // Step 4: Process events sequentially
     const operations = [];
@@ -81,15 +88,24 @@ async function processEvents() {
     let currentActiveVisit = activeVisit;
     
     for (const event of events) {
-      const result = processEvent(event, currentActiveVisit, operations);
+      const result = processEvent(event, currentActiveVisit, operations, tabAggregatesMap);
       currentActiveVisit = result.activeVisit;
       processedEventIds.push(event.id);
     }
     
-    // Step 5: Save new active visit state
+    // Step 5: Add all updated tab aggregates to operations
+    tabAggregatesMap.forEach(tabAggregate => {
+      operations.push({
+        type: 'put',
+        storeName: self.StorageModule.TAB_AGGREGATES_STORE,
+        data: tabAggregate
+      });
+    });
+    
+    // Step 6: Save new active visit state
     setActiveVisit(currentActiveVisit);
     
-    // Step 6: Execute all operations in a single transaction
+    // Step 7: Execute all operations in a single transaction
     if (operations.length > 0) {
       // Add delete operations for processed events
       for (const eventId of processedEventIds) {
@@ -117,23 +133,24 @@ async function processEvents() {
  * @param {Object} event - The CoreEvent to process
  * @param {Object|null} activeVisit - Current active visit state
  * @param {Array} operations - Array to collect database operations
+ * @param {Map} tabAggregatesMap - Map of existing tab aggregates
  * @returns {Object} - Updated active visit state
  */
-function processEvent(event, activeVisit, operations) {
+function processEvent(event, activeVisit, operations, tabAggregatesMap) {
   const { type } = event;
   
   switch (type) {
   case 'CREATE':
-    return processCreateEvent(event, activeVisit, operations);
+    return processCreateEvent(event, activeVisit, operations, tabAggregatesMap);
     
   case 'ACTIVATE':
-    return processActivateEvent(event, activeVisit, operations);
+    return processActivateEvent(event, activeVisit, operations, tabAggregatesMap);
     
   case 'NAVIGATE':
-    return processNavigateEvent(event, activeVisit, operations);
+    return processNavigateEvent(event, activeVisit, operations, tabAggregatesMap);
     
   case 'CLOSE':
-    return processCloseEvent(event, activeVisit, operations);
+    return processCloseEvent(event, activeVisit, operations, tabAggregatesMap);
     
   case 'HEARTBEAT':
     // Heartbeat events don't change aggregation state
@@ -148,7 +165,7 @@ function processEvent(event, activeVisit, operations) {
 /**
  * Processes CREATE events - creates new tab aggregate
  */
-function processCreateEvent(event, activeVisit, operations) {
+function processCreateEvent(event, activeVisit, operations, tabAggregatesMap) {
   const { tabId, url, timestamp } = event;
   
   // Create new tab aggregate
@@ -165,11 +182,8 @@ function processCreateEvent(event, activeVisit, operations) {
     openedTabs: []
   };
   
-  operations.push({
-    type: 'put',
-    storeName: self.StorageModule.TAB_AGGREGATES_STORE,
-    data: tabAggregate
-  });
+  // Add to the map (will be saved later)
+  tabAggregatesMap.set(tabId, tabAggregate);
   
   return { activeVisit };
 }
@@ -177,12 +191,12 @@ function processCreateEvent(event, activeVisit, operations) {
 /**
  * Processes ACTIVATE events - ends previous visit and starts new one
  */
-async function processActivateEvent(event, activeVisit, operations) {
+function processActivateEvent(event, activeVisit, operations, tabAggregatesMap) {
   const { tabId, url, timestamp } = event;
   
   // End previous visit if there was one
   if (activeVisit) {
-    await endPageVisit(activeVisit, timestamp, operations);
+    endPageVisit(activeVisit, timestamp, operations, tabAggregatesMap);
   }
   
   // Start new page visit
@@ -209,12 +223,12 @@ async function processActivateEvent(event, activeVisit, operations) {
 /**
  * Processes NAVIGATE events - ends current visit and starts new one for same tab
  */
-async function processNavigateEvent(event, activeVisit, operations) {
+function processNavigateEvent(event, activeVisit, operations, tabAggregatesMap) {
   const { tabId, url, timestamp } = event;
   
   // End current visit for this tab if it's the active tab
   if (activeVisit && activeVisit.tabId === tabId) {
-    await endPageVisit(activeVisit, timestamp, operations);
+    endPageVisit(activeVisit, timestamp, operations, tabAggregatesMap);
   }
   
   // Start new page visit
@@ -235,16 +249,28 @@ async function processNavigateEvent(event, activeVisit, operations) {
     data: pageVisit
   });
   
-  // Update tab aggregate
-  const tabAggregate = await getOrCreateTabAggregate(tabId, url, timestamp);
-  tabAggregate.lastUrl = url;
-  tabAggregate.navigationCount += 1;
-  
-  operations.push({
-    type: 'put',
-    storeName: self.StorageModule.TAB_AGGREGATES_STORE,
-    data: tabAggregate
-  });
+  // Update tab aggregate with new URL
+  let tabAggregate = tabAggregatesMap.get(tabId);
+  if (!tabAggregate) {
+    // Create new tab aggregate if doesn't exist
+    tabAggregate = {
+      tabId,
+      isOpen: true,
+      createdAt: timestamp,
+      closedAt: null,
+      initialUrl: url,
+      lastUrl: url,
+      totalActiveSeconds: 0,
+      navigationCount: 0,
+      openedByTabId: null,
+      openedTabs: []
+    };
+    tabAggregatesMap.set(tabId, tabAggregate);
+  } else {
+    // Update existing tab aggregate
+    tabAggregate.lastUrl = url;
+    tabAggregate.navigationCount = (tabAggregate.navigationCount || 0) + 1;
+  }
   
   // Update active visit if this was the active tab
   const newActiveVisit = (activeVisit && activeVisit.tabId === tabId) 
@@ -257,24 +283,35 @@ async function processNavigateEvent(event, activeVisit, operations) {
 /**
  * Processes CLOSE events - ends final visit and closes tab aggregate
  */
-async function processCloseEvent(event, activeVisit, operations) {
+function processCloseEvent(event, activeVisit, operations, tabAggregatesMap) {
   const { tabId, timestamp } = event;
   
   // End current visit for this tab if it's the active tab
   if (activeVisit && activeVisit.tabId === tabId) {
-    await endPageVisit(activeVisit, timestamp, operations);
+    endPageVisit(activeVisit, timestamp, operations, tabAggregatesMap);
   }
   
   // Update tab aggregate to closed
-  const tabAggregate = await getOrCreateTabAggregate(tabId, '', timestamp);
-  tabAggregate.isOpen = false;
-  tabAggregate.closedAt = timestamp;
-  
-  operations.push({
-    type: 'put',
-    storeName: self.StorageModule.TAB_AGGREGATES_STORE,
-    data: tabAggregate
-  });
+  let tabAggregate = tabAggregatesMap.get(tabId);
+  if (!tabAggregate) {
+    // Create minimal tab aggregate if doesn't exist
+    tabAggregate = {
+      tabId,
+      isOpen: false,
+      createdAt: timestamp,
+      closedAt: timestamp,
+      initialUrl: '',
+      lastUrl: '',
+      totalActiveSeconds: 0,
+      navigationCount: 0,
+      openedByTabId: null,
+      openedTabs: []
+    };
+    tabAggregatesMap.set(tabId, tabAggregate);
+  } else {
+    tabAggregate.isOpen = false;
+    tabAggregate.closedAt = timestamp;
+  }
   
   // Clear active visit if this was the active tab
   const newActiveVisit = (activeVisit && activeVisit.tabId === tabId) 
@@ -287,7 +324,7 @@ async function processCloseEvent(event, activeVisit, operations) {
 /**
  * Ends a page visit by setting endedAt and calculating duration
  */
-async function endPageVisit(activeVisit, endTimestamp, operations) {
+function endPageVisit(activeVisit, endTimestamp, operations, tabAggregatesMap) {
   if (!activeVisit) {return;}
   
   const { visitId, tabId } = activeVisit;
@@ -315,59 +352,13 @@ async function endPageVisit(activeVisit, endTimestamp, operations) {
   });
   
   // Update tab aggregate's total active seconds
-  const tabAggregate = await getOrCreateTabAggregate(tabId, '', endTimestamp);
-  tabAggregate.totalActiveSeconds = (tabAggregate.totalActiveSeconds || 0) + 
-    Math.max(0, durationSeconds);
-  
-  operations.push({
-    type: 'put',
-    storeName: self.StorageModule.TAB_AGGREGATES_STORE,
-    data: tabAggregate
-  });
-}
-
-/**
- * Gets existing tab aggregate or creates a minimal one
- */
-async function getOrCreateTabAggregate(tabId, url, timestamp) {
-  try {
-    const { getTabAggregate } = self.StorageModule;
-    const existing = await getTabAggregate(tabId);
-    
-    if (existing) {
-      return existing;
-    }
-    
-    // Create minimal tab aggregate if doesn't exist
-    return {
-      tabId,
-      isOpen: true,
-      createdAt: timestamp,
-      closedAt: null,
-      initialUrl: url,
-      lastUrl: url,
-      totalActiveSeconds: 0,
-      navigationCount: 0,
-      openedByTabId: null,
-      openedTabs: []
-    };
-  } catch (error) {
-    console.error('Error getting tab aggregate:', error);
-    // Return minimal aggregate as fallback
-    return {
-      tabId,
-      isOpen: true,
-      createdAt: timestamp,
-      closedAt: null,
-      initialUrl: url,
-      lastUrl: url,
-      totalActiveSeconds: 0,
-      navigationCount: 0,
-      openedByTabId: null,
-      openedTabs: []
-    };
+  const tabAggregate = tabAggregatesMap.get(tabId);
+  if (tabAggregate) {
+    tabAggregate.totalActiveSeconds = (tabAggregate.totalActiveSeconds || 0) + 
+      Math.max(0, durationSeconds);
   }
 }
+
 
 /**
  * Gets the current active visit state from chrome.storage.local

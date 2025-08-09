@@ -29,6 +29,7 @@ async function initialize() {
   const { performCleanup, setupCleanupAlarm, setupCleanupAlarmListener } = self.CleanupModule;
   const { setupTabListeners } = self.ListenersModule;
   const { initAggregator } = self.AggregatorModule;
+  const { setupDebugMessageHandlers } = self.DebugModule;
   
   console.log('🚀 HeyHo background script loaded and ready to track events!');
   if (IS_DEV_MODE) {
@@ -40,6 +41,9 @@ async function initialize() {
   
   // Initialize the aggregation system
   await initAggregator();
+  
+  // Setup debug message handlers
+  setupDebugMessageHandlers();
   
   // Run initial cleanup on startup to handle any old data
   if (IS_DEV_MODE) {
