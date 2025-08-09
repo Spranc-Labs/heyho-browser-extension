@@ -23,7 +23,7 @@ describe('Storage Module Unit Tests', () => {
       
       await initDB();
       
-      expect(openSpy).toHaveBeenCalledWith('Heyho_EventsDB', 1);
+      expect(openSpy).toHaveBeenCalledWith('Heyho_EventsDB', 2);
     });
 
     test('Test 1.1.2: Should set up events object store with correct indexes', async () => {
@@ -32,16 +32,26 @@ describe('Storage Module Unit Tests', () => {
       // Verify database was created
       expect(db).toBeTruthy();
       expect(db.name).toBe('Heyho_EventsDB');
-      expect(db.version).toBe(1);
+      expect(db.version).toBe(2);
       
-      // Verify the events store was created during setup
+      // Verify all stores were created during setup
       expect(db._stores.has('events')).toBe(true);
+      expect(db._stores.has('pageVisits')).toBe(true);
+      expect(db._stores.has('tabAggregates')).toBe(true);
       
       const eventsStore = db._stores.get('events');
       expect(eventsStore.name).toBe('events');
       expect(eventsStore.keyPath).toBe('id');
       expect(eventsStore.indexNames).toContain('timestamp_idx');
       expect(eventsStore.indexNames).toContain('domain_idx');
+      
+      const pageVisitsStore = db._stores.get('pageVisits');
+      expect(pageVisitsStore.name).toBe('pageVisits');
+      expect(pageVisitsStore.keyPath).toBe('visitId');
+      
+      const tabAggregatesStore = db._stores.get('tabAggregates');
+      expect(tabAggregatesStore.name).toBe('tabAggregates');
+      expect(tabAggregatesStore.keyPath).toBe('tabId');
     });
 
     test('Test 1.1.3: Should resolve with database instance on success', async () => {
@@ -49,7 +59,7 @@ describe('Storage Module Unit Tests', () => {
       
       expect(db).toBeTruthy();
       expect(db.name).toBe('Heyho_EventsDB');
-      expect(db.version).toBe(1);
+      expect(db.version).toBe(2);
     });
 
     test('Test 1.1.4: Should reject promise on database connection failure', async () => {

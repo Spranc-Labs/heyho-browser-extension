@@ -52,7 +52,18 @@ class MockIDBTransaction {
     this.mode = mode;
     this.error = null;
     this.onerror = null;
+    this.oncomplete = null;
+    this.onabort = null;
     this._stores = new Map();
+    this._completed = false;
+    
+    // Auto-complete transaction after a short delay (simulate real behavior)
+    setTimeout(() => {
+      if (!this._completed && this.oncomplete) {
+        this._completed = true;
+        this.oncomplete({ target: this });
+      }
+    }, 10);
   }
 
   objectStore(name) {
@@ -66,6 +77,13 @@ class MockIDBTransaction {
     this.error = error;
     if (this.onerror) {
       this.onerror({ target: this });
+    }
+  }
+
+  _abort() {
+    this._completed = true;
+    if (this.onabort) {
+      this.onabort({ target: this });
     }
   }
 }
@@ -161,6 +179,42 @@ class MockIDBObjectStore {
     return request;
   }
 
+  put(value) {
+    const request = new MockIDBRequest();
+    
+    // Simulate async operation
+    setTimeout(() => {
+      try {
+        if (this.keyPath && value[this.keyPath]) {
+          const key = value[this.keyPath];
+          this._data.set(key, value); // put allows overwriting
+          request._succeed(key);
+        } else {
+          request._fail(new Error('Invalid key'));
+        }
+      } catch (error) {
+        request._fail(error);
+      }
+    }, 0);
+    
+    return request;
+  }
+
+  get(key) {
+    const request = new MockIDBRequest();
+    
+    setTimeout(() => {
+      try {
+        const value = this._data.get(key);
+        request._succeed(value);
+      } catch (error) {
+        request._fail(error);
+      }
+    }, 0);
+    
+    return request;
+  }
+
   delete(key) {
     const request = new MockIDBRequest();
     
@@ -233,27 +287,38 @@ class MockIDBOpenDBRequest extends MockIDBRequest {
     this.onupgradeneeded = null;
   }
 
-  _triggerUpgrade(db) {
+  _triggerUpgrade(db, oldVersion = 0, newVersion = 1) {
     if (this.onupgradeneeded) {
-      this.onupgradeneeded({ target: { result: db }, currentTarget: { result: db } });
+      this.onupgradeneeded({ 
+        target: { result: db }, 
+        currentTarget: { result: db },
+        oldVersion,
+        newVersion
+      });
     }
   }
 }
 
 // Mock IndexedDB implementation
 const mockIndexedDB = {
+  _databases: new Map(), // Track database versions
+  
   open(name, version) {
     const request = new MockIDBOpenDBRequest();
     
     // Simulate async database opening
     setTimeout(() => {
       try {
-        const db = new MockIDBDatabase(name, version);
+        const currentVersion = this._databases.get(name) || 0;
+        const db = new MockIDBDatabase(name, version || 1);
         
-        // Trigger upgrade if needed (simulate first-time creation)
-        if (version && version > 0) {
-          request._triggerUpgrade(db);
+        // Trigger upgrade if version is higher than current
+        if ((version || 1) > currentVersion) {
+          request._triggerUpgrade(db, currentVersion, version || 1);
         }
+        
+        // Update stored version
+        this._databases.set(name, version || 1);
         
         request._succeed(db);
       } catch (error) {
@@ -311,4 +376,7 @@ afterEach(() => {
   if (chrome.flush) {
     chrome.flush();
   }
+  
+  // Reset IndexedDB state between tests
+  mockIndexedDB._databases.clear();
 });

@@ -7,8 +7,10 @@
  */
 
 const DB_NAME = 'Heyho_EventsDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'events';
+const DB_VERSION = 2;
+const EVENTS_STORE = 'events';
+const PAGE_VISITS_STORE = 'pageVisits';
+const TAB_AGGREGATES_STORE = 'tabAggregates';
 
 let dbInstance = null;
 
@@ -36,15 +38,30 @@ function initDB() {
 
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
+      const oldVersion = event.oldVersion;
       
-      // Create the events object store with 'id' as keyPath
-      const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      // Create events object store if it doesn't exist
+      if (oldVersion < 1) {
+        const eventsStore = db.createObjectStore(EVENTS_STORE, { keyPath: 'id' });
+        eventsStore.createIndex('timestamp_idx', 'timestamp', { unique: false });
+        eventsStore.createIndex('domain_idx', 'domain', { unique: false });
+      }
       
-      // Create indexes for efficient querying
-      store.createIndex('timestamp_idx', 'timestamp', { unique: false });
-      store.createIndex('domain_idx', 'domain', { unique: false });
+      // Create new object stores for aggregation system
+      if (oldVersion < 2) {
+        // Create pageVisits store
+        const pageVisitsStore = db.createObjectStore(PAGE_VISITS_STORE, { keyPath: 'visitId' });
+        pageVisitsStore.createIndex('tabId_idx', 'tabId', { unique: false });
+        pageVisitsStore.createIndex('startedAt_idx', 'startedAt', { unique: false });
+        pageVisitsStore.createIndex('domain_idx', 'domain', { unique: false });
+        
+        // Create tabAggregates store
+        const tabAggregatesStore = db.createObjectStore(TAB_AGGREGATES_STORE, { keyPath: 'tabId' });
+        tabAggregatesStore.createIndex('createdAt_idx', 'createdAt', { unique: false });
+        tabAggregatesStore.createIndex('isOpen_idx', 'isOpen', { unique: false });
+      }
       
-      console.log('IndexedDB setup complete: created events store with indexes');
+      console.log('IndexedDB setup complete: created all stores with indexes');
     };
   });
 }
@@ -65,8 +82,8 @@ async function addEvent(eventObject) {
     const db = await initDB();
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
+      const transaction = db.transaction([EVENTS_STORE], 'readwrite');
+      const store = transaction.objectStore(EVENTS_STORE);
       
       const request = store.add(eventObject);
       
@@ -98,8 +115,8 @@ async function getExpiredEvents(maxAgeHours = 168) {
     const cutoffTime = Date.now() - (maxAgeHours * 60 * 60 * 1000);
     
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([STORE_NAME], 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
+      const transaction = db.transaction([EVENTS_STORE], 'readonly');
+      const store = transaction.objectStore(EVENTS_STORE);
       const index = store.index('timestamp_idx');
       const range = IDBKeyRange.upperBound(cutoffTime, false);
       
@@ -166,8 +183,8 @@ async function deleteEvents(eventIds) {
  */
 function deleteBatch(db, eventIds) {
   return new Promise((resolve, reject) => {
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
+    const transaction = db.transaction([EVENTS_STORE], 'readwrite');
+    const store = transaction.objectStore(EVENTS_STORE);
     
     let deletedCount = 0;
     let completedOperations = 0;
@@ -211,6 +228,156 @@ function deleteBatch(db, eventIds) {
 }
 
 /**
+ * Gets all events from the events store, sorted by timestamp
+ * @returns {Promise<Array>} - Array of all events
+ */
+async function getAllEvents() {
+  try {
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([EVENTS_STORE], 'readonly');
+      const store = transaction.objectStore(EVENTS_STORE);
+      const index = store.index('timestamp_idx');
+      
+      const events = [];
+      const request = index.openCursor();
+      
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          events.push(cursor.value);
+          cursor.continue();
+        } else {
+          resolve(events);
+        }
+      };
+      
+      request.onerror = () => {
+        reject(new Error(`Failed to get all events: ${request.error}`));
+      };
+      
+      transaction.onerror = () => {
+        reject(new Error(`Transaction failed: ${transaction.error}`));
+      };
+    });
+  } catch (error) {
+    throw new Error(`Failed to get all events: ${error.message}`);
+  }
+}
+
+/**
+ * Adds or updates a page visit record
+ * @param {Object} pageVisit - The page visit object
+ * @returns {Promise<void>}
+ */
+async function upsertPageVisit(pageVisit) {
+  try {
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([PAGE_VISITS_STORE], 'readwrite');
+      const store = transaction.objectStore(PAGE_VISITS_STORE);
+      
+      const request = store.put(pageVisit);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error(`Failed to upsert page visit: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to upsert page visit: ${error.message}`);
+  }
+}
+
+/**
+ * Adds or updates a tab aggregate record
+ * @param {Object} tabAggregate - The tab aggregate object
+ * @returns {Promise<void>}
+ */
+async function upsertTabAggregate(tabAggregate) {
+  try {
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readwrite');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+      
+      const request = store.put(tabAggregate);
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error(`Failed to upsert tab aggregate: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to upsert tab aggregate: ${error.message}`);
+  }
+}
+
+/**
+ * Gets a tab aggregate by tab ID
+ * @param {number} tabId - The tab ID
+ * @returns {Promise<Object|null>} - The tab aggregate or null if not found
+ */
+async function getTabAggregate(tabId) {
+  try {
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readonly');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+      
+      const request = store.get(tabId);
+      
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(new Error(`Failed to get tab aggregate: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get tab aggregate: ${error.message}`);
+  }
+}
+
+/**
+ * Executes multiple operations in a single transaction
+ * @param {Array} operations - Array of {type, data} operations
+ * @returns {Promise<void>}
+ */
+async function executeTransaction(operations) {
+  try {
+    const db = await initDB();
+    const stores = [EVENTS_STORE, PAGE_VISITS_STORE, TAB_AGGREGATES_STORE];
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(stores, 'readwrite');
+      
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+      transaction.onabort = () => reject(new Error('Transaction was aborted'));
+      
+      // Execute all operations within the transaction
+      for (const operation of operations) {
+        const { type, storeName, data, key } = operation;
+        const store = transaction.objectStore(storeName);
+        
+        switch (type) {
+        case 'put':
+          store.put(data);
+          break;
+        case 'delete':
+          store.delete(key || data);
+          break;
+        default:
+          throw new Error(`Unknown operation type: ${type}`);
+        }
+      }
+    });
+  } catch (error) {
+    throw new Error(`Failed to execute transaction: ${error.message}`);
+  }
+}
+
+/**
  * Reset the cached database instance (for testing purposes)
  * @private
  */
@@ -221,8 +388,18 @@ function __resetInstance() {
 // Export functions for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
   // Node.js environment
-  module.exports = { initDB, addEvent, getExpiredEvents, deleteEvents, __resetInstance };
+  module.exports = { 
+    initDB, addEvent, getExpiredEvents, deleteEvents, 
+    getAllEvents, upsertPageVisit, upsertTabAggregate, getTabAggregate, executeTransaction,
+    EVENTS_STORE, PAGE_VISITS_STORE, TAB_AGGREGATES_STORE,
+    __resetInstance 
+  };
 } else {
   // Browser environment - attach to global scope
-  self.StorageModule = { initDB, addEvent, getExpiredEvents, deleteEvents, __resetInstance };
+  self.StorageModule = { 
+    initDB, addEvent, getExpiredEvents, deleteEvents,
+    getAllEvents, upsertPageVisit, upsertTabAggregate, getTabAggregate, executeTransaction,
+    EVENTS_STORE, PAGE_VISITS_STORE, TAB_AGGREGATES_STORE,
+    __resetInstance 
+  };
 }
