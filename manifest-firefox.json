@@ -6,6 +6,10 @@
   "background": {
     "scripts": [
       "browser-polyfill.js", 
+      "src/aggregation/utils.js",
+      "src/aggregation/models.js",
+      "src/aggregation/storage.js",
+      "src/aggregation/processor.js",
       "src/background/storage.js", 
       "src/background/config.js",
       "src/background/triage.js",
