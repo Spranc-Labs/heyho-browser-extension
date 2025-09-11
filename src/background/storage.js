@@ -228,6 +228,38 @@ function deleteBatch(db, eventIds) {
 }
 
 /**
+ * Clears all events from the events store
+ * @returns {Promise<boolean>} - True if successful
+ */
+async function clearEvents() {
+  try {
+    const db = await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([EVENTS_STORE], 'readwrite');
+      const store = transaction.objectStore(EVENTS_STORE);
+      const request = store.clear();
+      
+      request.onsuccess = () => {
+        console.log('All events cleared from IndexedDB');
+        resolve(true);
+      };
+      
+      request.onerror = () => {
+        reject(new Error(`Failed to clear events: ${request.error}`));
+      };
+      
+      transaction.onerror = () => {
+        reject(new Error(`Transaction failed: ${transaction.error}`));
+      };
+    });
+  } catch (error) {
+    console.error('Failed to clear events:', error);
+    return false;
+  }
+}
+
+/**
  * Gets all events from the events store, sorted by timestamp
  * @returns {Promise<Array>} - Array of all events
  */
@@ -398,7 +430,7 @@ if (typeof module !== 'undefined' && module.exports) {
 } else {
   // Browser environment - attach to global scope
   self.StorageModule = { 
-    initDB, addEvent, getExpiredEvents, deleteEvents,
+    initDB, addEvent, getExpiredEvents, deleteEvents, clearEvents,
     getAllEvents, executeTransaction,
     getPageVisitsCount, getTabAggregatesCount, getTabAggregatesForProcessing,
     EVENTS_STORE, PAGE_VISITS_STORE, TAB_AGGREGATES_STORE,

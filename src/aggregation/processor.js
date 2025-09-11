@@ -39,18 +39,34 @@ class EventProcessor {
       
       for (const event of events) {
         try {
-          await this._processEvent(event);
+          console.log(`🔄 Processing event ${event.id} of type ${event.type}...`);
+          const result = await this._processEvent(event);
+          console.log(`✅ Event ${event.id} processed:`, result);
           this.batch.markEventProcessed(event.id);
           processedCount++;
         } catch (error) {
-          console.error(`Error processing event ${event.id}:`, error);
+          console.error(`❌ Error processing event ${event.id}:`, error);
           this.batch.addError({ eventId: event.id, error: error.message });
           errorCount++;
         }
       }
       
+      console.log(`📊 Batch processing complete: ${processedCount} processed, ${errorCount} errors`);
+      console.log(`📊 Batch contents: ${this.batch.pageVisits.length} page visits, ${this.batch.tabAggregates.size} tab aggregates`);
+      
       // Save results
       const saved = await this.storage.saveProcessingResults(this.batch);
+      
+      // Clear processed events from IndexedDB if saving was successful
+      if (saved && processedCount > 0) {
+        await this.storage.clearEvents();
+        console.log(`Cleared ${processedCount} processed events from IndexedDB`);
+        
+        // Log aggregation success
+        console.log(`✅ Aggregation completed: ${this.batch.pageVisits.length} page visits, ${this.batch.tabAggregates.size} tab aggregates saved`);
+      } else if (!saved) {
+        console.error('❌ Failed to save aggregation results - events NOT cleared');
+      }
       
       const result = {
         success: saved,
@@ -85,14 +101,21 @@ class EventProcessor {
     }
     
     switch (event.type) {
+    // Handle both new and legacy event types
     case 'page_view':
+    case 'CREATE':
       return this._handlePageView(event);
     case 'tab_activate':
+    case 'ACTIVATE':
       return this._handleTabActivate(event);
     case 'tab_close':
+    case 'CLOSE':
       return this._handleTabClose(event);
     case 'navigation':
+    case 'NAVIGATE':
       return this._handleNavigation(event);
+    case 'heartbeat':
+      return this._handleHeartbeat(event);
     default:
       console.warn(`Unknown event type: ${event.type}`);
       return null;
@@ -208,6 +231,42 @@ class EventProcessor {
       tabId, 
       domain, 
       transitionType 
+    };
+  }
+
+  /**
+   * Handle heartbeat event for engagement tracking
+   */
+  _handleHeartbeat(event) {
+    const { activeTabId, engagement, timestamp } = event;
+    
+    if (!engagement) {
+      return { type: 'heartbeat', skipped: true, reason: 'No engagement data' };
+    }
+    
+    // Update active visit if it exists and matches the active tab
+    if (this.batch.activeVisit && this.batch.activeVisit.tabId === activeTabId) {
+      // Create a PageVisit instance to use the updateEngagement method
+      const activeVisit = new self.PageVisit(this.batch.activeVisit);
+      activeVisit.updateEngagement(event);
+      
+      // Update the stored active visit
+      this.batch.activeVisit = activeVisit.toJSON();
+      
+      return {
+        type: 'heartbeat',
+        processed: true,
+        tabId: activeTabId,
+        engaged: engagement.isEngaged,
+        reason: engagement.reason
+      };
+    }
+    
+    // No active visit to update
+    return {
+      type: 'heartbeat',
+      skipped: true,
+      reason: 'No active visit for tab'
     };
   }
 

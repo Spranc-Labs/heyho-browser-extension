@@ -15,10 +15,12 @@
       "src/background/triage.js",
       "src/background/events.js",
       "src/background/aggregator.js",
+      "src/background/heartbeat.js",
       "src/background/debug.js",
       "src/background/listeners.js", 
       "src/background/cleanup.js",
       "src/background/init.js",
+      "test-aggregation-fix.js",
       "background.js"
     ]
   },

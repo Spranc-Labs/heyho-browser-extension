@@ -54,23 +54,29 @@ async function handleDebugMessage(request, sender, sendResponse) {
  */
 async function handleGetDebugStats(sendResponse) {
   try {
-    const { getAllEvents, getPageVisitsCount, getTabAggregatesCount } = self.StorageModule;
+    const { getAllEvents } = self.StorageModule;
     
-    // Get counts from each store
+    // Get raw events from IndexedDB
     const rawEvents = await getAllEvents();
-    const pageVisitsCount = await getPageVisitsCount();
-    const tabAggregatesCount = await getTabAggregatesCount();
     
-    // Get last aggregation time from storage
-    const result = await chrome.storage.local.get('lastAggregationTime');
-    const lastAggregation = result.lastAggregationTime 
-      ? new Date(result.lastAggregationTime).toLocaleString()
+    // Get aggregated data from browser.storage.local
+    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const [pageVisitsResult, tabAggregatesResult, lastAggregationResult] = await Promise.all([
+      storage.get('pageVisits'),
+      storage.get('tabAggregates'),
+      storage.get('lastAggregationTime')
+    ]);
+    
+    const pageVisits = pageVisitsResult.pageVisits || [];
+    const tabAggregates = tabAggregatesResult.tabAggregates || [];
+    const lastAggregation = lastAggregationResult.lastAggregationTime 
+      ? new Date(lastAggregationResult.lastAggregationTime).toLocaleString()
       : 'Never';
 
     const stats = {
       eventsCount: rawEvents.length,
-      visitsCount: pageVisitsCount,
-      tabsCount: tabAggregatesCount,
+      visitsCount: pageVisits.length,
+      tabsCount: tabAggregates.length,
       lastAggregation
     };
 
@@ -85,7 +91,8 @@ async function handleGetDebugStats(sendResponse) {
  */
 async function handleTriggerAggregation(sendResponse) {
   try {
-    const { processEvents } = self.AggregatorModule;
+    // Use the refactored aggregator module
+    const { triggerAggregation } = self.aggregator;
     
     // Get count before processing
     const { getAllEvents } = self.StorageModule;
@@ -93,15 +100,16 @@ async function handleTriggerAggregation(sendResponse) {
     const eventsCountBefore = eventsBefore.length;
     
     // Run aggregation
-    await processEvents();
+    const result = await triggerAggregation();
     
     // Store aggregation time
-    await chrome.storage.local.set({
+    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    await storage.set({
       lastAggregationTime: Date.now()
     });
     
     sendResponse({ 
-      success: true, 
+      success: result?.success || true, 
       eventsProcessed: eventsCountBefore,
       message: 'Aggregation completed successfully'
     });
@@ -163,7 +171,8 @@ async function handleExportAllData(sendResponse) {
     ]);
     
     // Get system stats
-    const result = await chrome.storage.local.get('lastAggregationTime');
+    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const result = await storage.get('lastAggregationTime');
     const stats = {
       lastAggregationTime: result.lastAggregationTime || null,
       exportedAt: Date.now()
@@ -184,45 +193,47 @@ async function handleExportAllData(sendResponse) {
 }
 
 /**
- * Gets all page visits from the database
+ * Gets all page visits from the aggregation storage
  */
 async function getAllPageVisits() {
   try {
-    const { initDB, PAGE_VISITS_STORE } = self.StorageModule;
-    const db = await initDB();
+    console.log('🔍 DEBUG: Getting page visits from chrome.storage.local...');
+    // Get from browser.storage.local where aggregation saves them
+    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const result = await storage.get('pageVisits');
+    const pageVisits = result.pageVisits || [];
+    console.log(`🔍 DEBUG: Found ${pageVisits.length} page visits in storage`);
     
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([PAGE_VISITS_STORE], 'readonly');
-      const store = transaction.objectStore(PAGE_VISITS_STORE);
-      const request = store.getAll();
-      
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(new Error(`Failed to get page visits: ${request.error}`));
-      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
-    });
+    if (pageVisits.length > 0) {
+      console.log('🔍 DEBUG: Sample page visit:', pageVisits[0]);
+    }
+    
+    return pageVisits;
   } catch (error) {
+    console.error('❌ DEBUG: Error getting page visits:', error);
     throw new Error(`Failed to get page visits: ${error.message}`);
   }
 }
 
 /**
- * Gets all tab aggregates from the database
+ * Gets all tab aggregates from the aggregation storage
  */
 async function getAllTabAggregates() {
   try {
-    const { initDB, TAB_AGGREGATES_STORE } = self.StorageModule;
-    const db = await initDB();
+    console.log('🔍 DEBUG: Getting tab aggregates from chrome.storage.local...');
+    // Get from browser.storage.local where aggregation saves them
+    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const result = await storage.get('tabAggregates');
+    const tabAggregates = result.tabAggregates || [];
+    console.log(`🔍 DEBUG: Found ${tabAggregates.length} tab aggregates in storage`);
     
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readonly');
-      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
-      const request = store.getAll();
-      
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(new Error(`Failed to get tab aggregates: ${request.error}`));
-      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
-    });
+    if (tabAggregates.length > 0) {
+      console.log('🔍 DEBUG: Sample tab aggregate:', tabAggregates[0]);
+    }
+    
+    return tabAggregates;
   } catch (error) {
+    console.error('❌ DEBUG: Error getting tab aggregates:', error);
     throw new Error(`Failed to get tab aggregates: ${error.message}`);
   }
 }

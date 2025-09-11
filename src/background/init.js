@@ -28,7 +28,8 @@ async function initialize() {
   const { IS_DEV_MODE } = self.ConfigModule;
   const { performCleanup, setupCleanupAlarm, setupCleanupAlarmListener } = self.CleanupModule;
   const { setupTabListeners } = self.ListenersModule;
-  const { initAggregator } = self.AggregatorModule;
+  const { init: initAggregator } = self.aggregator;
+  const { init: initHeartbeat } = self.HeartbeatModule;
   const { setupDebugMessageHandlers } = self.DebugModule;
   
   console.log('🚀 HeyHo background script loaded and ready to track events!');
@@ -41,6 +42,12 @@ async function initialize() {
   
   // Initialize the aggregation system
   await initAggregator();
+  
+  // Initialize the heartbeat system for engagement tracking
+  await initHeartbeat();
+  if (IS_DEV_MODE) {
+    console.log('❤️ Heartbeat system initialized for engagement tracking');
+  }
   
   // Setup debug message handlers
   setupDebugMessageHandlers();
