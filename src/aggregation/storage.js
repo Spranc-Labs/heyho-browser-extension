@@ -5,7 +5,8 @@
 
 class AggregationStorage {
   constructor() {
-    this.storage = chrome.storage.local;
+    // Use browser.storage for better Firefox compatibility
+    this.storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
     
     // Storage keys
     this.KEYS = {
@@ -20,6 +21,14 @@ class AggregationStorage {
   
   async getEvents() {
     try {
+      // Get events from IndexedDB instead of chrome.storage.local
+      if (self.StorageModule && self.StorageModule.getAllEvents) {
+        const events = await self.StorageModule.getAllEvents();
+        console.log(`Retrieved ${events.length} events from IndexedDB for aggregation`);
+        return events;
+      }
+      
+      // Fallback to chrome.storage.local if IndexedDB not available
       const result = await this.storage.get(this.KEYS.EVENTS);
       return result[this.KEYS.EVENTS] || [];
     } catch (error) {
@@ -30,7 +39,8 @@ class AggregationStorage {
 
   async saveEvents(events) {
     try {
-      await this.storage.set({ [this.KEYS.EVENTS]: events });
+      // We don't save back to the events store, we clear them from IndexedDB
+      // This is handled by clearEvents after processing
       return true;
     } catch (error) {
       console.error('Failed to save events:', error);
@@ -39,13 +49,32 @@ class AggregationStorage {
   }
 
   async addEvent(event) {
+    // Events should be added through the main StorageModule to IndexedDB
+    // This is only used for testing or manual event addition
+    if (self.StorageModule && self.StorageModule.addEvent) {
+      return await self.StorageModule.addEvent(event);
+    }
+    
+    // Fallback for testing
     const events = await this.getEvents();
     events.push(event);
     return await this.saveEvents(events);
   }
 
   async clearEvents() {
-    return await this.saveEvents([]);
+    try {
+      // Clear events from IndexedDB after processing
+      if (self.StorageModule && self.StorageModule.clearEvents) {
+        console.log('Clearing processed events from IndexedDB');
+        return await self.StorageModule.clearEvents();
+      }
+      
+      // Fallback to chrome.storage.local
+      return await this.storage.set({ [this.KEYS.EVENTS]: [] });
+    } catch (error) {
+      console.error('Failed to clear events:', error);
+      return false;
+    }
   }
 
   // Page Visit Management
@@ -154,35 +183,39 @@ class AggregationStorage {
   
   async saveProcessingResults(batch) {
     try {
+      console.log(`💾 Saving aggregation results: ${batch.pageVisits.length} visits, ${batch.tabAggregates.size} aggregates`);
+      
       const promises = [];
       
       // Save page visits
       if (batch.pageVisits.length > 0) {
+        console.log(`Saving ${batch.pageVisits.length} new page visits...`);
         const existingVisits = await this.getPageVisits();
-        const allVisits = [...existingVisits, ...batch.pageVisits.map(v => v.toJSON())];
+        const newVisitsJSON = batch.pageVisits.map(v => v.toJSON());
+        const allVisits = [...existingVisits, ...newVisitsJSON];
         promises.push(this.savePageVisits(allVisits));
+        console.log(`Total page visits after save: ${allVisits.length}`);
       }
       
       // Save tab aggregates
       if (batch.tabAggregates.size > 0) {
+        console.log(`Saving ${batch.tabAggregates.size} tab aggregates...`);
         promises.push(this.saveTabAggregates(batch.tabAggregates));
       }
       
-      // Clear processed events
-      if (batch.processedEvents.size > 0) {
-        const remainingEvents = batch.events.filter(e => !batch.processedEvents.has(e.id));
-        promises.push(this.saveEvents(remainingEvents));
-      }
+      // Don't clear events here - that's handled by the processor after successful save
       
       // Update active visit
       if (batch.activeVisit) {
+        console.log('Updating active visit...');
         promises.push(this.setActiveVisit(batch.activeVisit));
       }
       
       await Promise.all(promises);
+      console.log('✅ All aggregation data saved successfully');
       return true;
     } catch (error) {
-      console.error('Failed to save processing results:', error);
+      console.error('❌ Failed to save processing results:', error);
       return false;
     }
   }

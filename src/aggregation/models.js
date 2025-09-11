@@ -4,7 +4,7 @@
  */
 
 /**
- * Represents a single page visit
+ * Represents a single page visit with engagement tracking
  */
 class PageVisit {
   constructor(data) {
@@ -15,33 +15,101 @@ class PageVisit {
     this.timestamp = data.timestamp;
     this.duration = data.duration || 0;
     this.isActive = data.isActive || false;
+    
+    // Engagement tracking fields
+    this.activeDuration = data.activeDuration || 0;
+    this.idlePeriods = data.idlePeriods || [];
+    this.engagementRate = data.engagementRate || 0;
+    this.lastHeartbeat = data.lastHeartbeat || null;
   }
 
   static createFromEvent(tabId, url, domain, timestamp) {
     return new PageVisit({
+      id: `pv_${timestamp}_${tabId}`, // Match the format from your existing data
       tabId,
       url,
       domain,
       timestamp,
-      isActive: true
+      isActive: true,
+      activeDuration: 0,
+      idlePeriods: [],
+      engagementRate: 0
     });
   }
 
   complete(endTimestamp) {
     this.duration = endTimestamp - this.timestamp;
     this.isActive = false;
+    this.calculateEngagementRate();
     return this;
+  }
+
+  /**
+   * Update engagement based on heartbeat
+   */
+  updateEngagement(heartbeat) {
+    if (!heartbeat || !heartbeat.engagement) return;
+    
+    this.lastHeartbeat = heartbeat.timestamp;
+    
+    // If engaged, add to active duration
+    if (heartbeat.engagement.isEngaged) {
+      // Add time since last heartbeat (or use 30 seconds as default)
+      const timeSinceLastHeartbeat = 30000; // 30 seconds default
+      this.activeDuration += timeSinceLastHeartbeat;
+    } else {
+      // Track idle period if not already idle
+      const lastIdlePeriod = this.idlePeriods[this.idlePeriods.length - 1];
+      if (!lastIdlePeriod || lastIdlePeriod.end) {
+        // Start new idle period
+        this.idlePeriods.push({
+          start: heartbeat.timestamp,
+          reason: heartbeat.engagement.reason
+        });
+      }
+    }
+    
+    // Update engagement rate
+    this.calculateEngagementRate();
+  }
+
+  /**
+   * Calculate engagement rate (active time / total time)
+   */
+  calculateEngagementRate() {
+    if (this.duration > 0) {
+      this.engagementRate = Math.min(1, this.activeDuration / this.duration);
+    } else if (this.isActive) {
+      // For active visits, calculate based on time since start
+      const currentDuration = Date.now() - this.timestamp;
+      if (currentDuration > 0) {
+        this.engagementRate = Math.min(1, this.activeDuration / currentDuration);
+      }
+    }
   }
 
   toJSON() {
     return {
-      id: this.id,
+      // Legacy format fields (for compatibility with existing data)
+      visitId: this.id,
       tabId: this.tabId,
       url: this.url,
       domain: this.domain,
+      startedAt: this.timestamp,
+      endedAt: this.isActive ? null : (this.timestamp + this.duration),
+      durationSeconds: this.duration ? Math.round(this.duration / 1000) : null,
+      
+      // New format fields (for future use)
+      id: this.id,
       timestamp: this.timestamp,
       duration: this.duration,
-      isActive: this.isActive
+      isActive: this.isActive,
+      
+      // Engagement fields
+      activeDuration: this.activeDuration,
+      idlePeriods: this.idlePeriods,
+      engagementRate: this.engagementRate,
+      lastHeartbeat: this.lastHeartbeat
     };
   }
 }
