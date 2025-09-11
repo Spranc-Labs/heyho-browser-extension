@@ -52,7 +52,8 @@ class EventProcessor {
       }
       
       console.log(`📊 Batch processing complete: ${processedCount} processed, ${errorCount} errors`);
-      console.log(`📊 Batch contents: ${this.batch.pageVisits.length} page visits, ${this.batch.tabAggregates.size} tab aggregates`);
+      console.log(`📊 Batch contents: ${this.batch.pageVisits.length} page visits, ` +
+                  `${this.batch.tabAggregates.size} tab aggregates`);
       
       // Save results
       const saved = await this.storage.saveProcessingResults(this.batch);
@@ -63,7 +64,8 @@ class EventProcessor {
         console.log(`Cleared ${processedCount} processed events from IndexedDB`);
         
         // Log aggregation success
-        console.log(`✅ Aggregation completed: ${this.batch.pageVisits.length} page visits, ${this.batch.tabAggregates.size} tab aggregates saved`);
+        console.log(`✅ Aggregation completed: ${this.batch.pageVisits.length} page visits, ` +
+                    `${this.batch.tabAggregates.size} tab aggregates saved`);
       } else if (!saved) {
         console.error('❌ Failed to save aggregation results - events NOT cleared');
       }
@@ -115,6 +117,7 @@ class EventProcessor {
     case 'NAVIGATE':
       return this._handleNavigation(event);
     case 'heartbeat':
+    case 'HEARTBEAT':
       return this._handleHeartbeat(event);
     default:
       console.warn(`Unknown event type: ${event.type}`);
@@ -238,7 +241,7 @@ class EventProcessor {
    * Handle heartbeat event for engagement tracking
    */
   _handleHeartbeat(event) {
-    const { activeTabId, engagement, timestamp } = event;
+    const { activeTabId, engagement } = event;
     
     if (!engagement) {
       return { type: 'heartbeat', skipped: true, reason: 'No engagement data' };

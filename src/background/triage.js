@@ -30,8 +30,8 @@ function shouldStoreEvent(eventObject) {
   }
   
   // Rule 2: Filter Events Without a URL/Domain
-  // Exception: CLOSE events are always considered valuable
-  if (eventObject.type !== 'CLOSE') {
+  // Exception: CLOSE and HEARTBEAT events are always considered valuable
+  if (eventObject.type !== 'CLOSE' && eventObject.type !== 'HEARTBEAT') {
     if (!domain || domain === '' || domain === null || domain === undefined) {
       return false;
     }

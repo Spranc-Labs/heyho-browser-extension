@@ -48,7 +48,9 @@ class PageVisit {
    * Update engagement based on heartbeat
    */
   updateEngagement(heartbeat) {
-    if (!heartbeat || !heartbeat.engagement) return;
+    if (!heartbeat || !heartbeat.engagement) {
+      return;
+    }
     
     this.lastHeartbeat = heartbeat.timestamp;
     

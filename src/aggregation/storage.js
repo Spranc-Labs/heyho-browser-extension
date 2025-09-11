@@ -37,15 +37,10 @@ class AggregationStorage {
     }
   }
 
-  async saveEvents(events) {
-    try {
-      // We don't save back to the events store, we clear them from IndexedDB
-      // This is handled by clearEvents after processing
-      return true;
-    } catch (error) {
-      console.error('Failed to save events:', error);
-      return false;
-    }
+  saveEvents(_events) {
+    // We don't save back to the events store, we clear them from IndexedDB
+    // This is handled by clearEvents after processing
+    return true;
   }
 
   async addEvent(event) {
@@ -55,10 +50,9 @@ class AggregationStorage {
       return await self.StorageModule.addEvent(event);
     }
     
-    // Fallback for testing
-    const events = await this.getEvents();
-    events.push(event);
-    return await this.saveEvents(events);
+    // Fallback for testing - return false since we can't actually save
+    console.warn('StorageModule not available, cannot add event');
+    return false;
   }
 
   async clearEvents() {
@@ -183,7 +177,8 @@ class AggregationStorage {
   
   async saveProcessingResults(batch) {
     try {
-      console.log(`💾 Saving aggregation results: ${batch.pageVisits.length} visits, ${batch.tabAggregates.size} aggregates`);
+      console.log(`💾 Saving aggregation results: ${batch.pageVisits.length} visits, ` +
+                  `${batch.tabAggregates.size} aggregates`);
       
       const promises = [];
       
