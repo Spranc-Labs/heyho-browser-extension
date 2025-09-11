@@ -103,12 +103,25 @@ async function generateHeartbeat() {
       engagement: calculateEngagement(idleState, activeTab, windowFocused)
     };
     
-    // Add to buffer and process
+    // Add to buffer
     await addHeartbeat(heartbeat);
     
-    // Send heartbeat event for processing
-    if (self.aggregator && self.aggregator.addEvent) {
-      await self.aggregator.addEvent(heartbeat);
+    // Create and save heartbeat event through the EventsModule for proper triage and storage
+    if (self.EventsModule && self.EventsModule.createCoreEvent && 
+        self.EventsModule.logAndSaveEvent) {
+      const heartbeatEvent = self.EventsModule.createCoreEvent(
+        'HEARTBEAT', 
+        activeTab?.id || 0, 
+        activeTab?.url || '', 
+        {
+          idleState: idleState,
+          audible: activeTab?.audible || false,
+          windowFocused: windowFocused,
+          engagement: calculateEngagement(idleState, activeTab, windowFocused)
+        }
+      );
+      
+      await self.EventsModule.logAndSaveEvent(heartbeatEvent);
     }
     
     return heartbeat;

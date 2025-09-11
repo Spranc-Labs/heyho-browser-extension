@@ -33,14 +33,15 @@ function getDomain(url) {
 
 /**
  * Creates a CoreEvent object with unique ID and current timestamp
- * @param {string} type - Event type (CREATE, ACTIVATE, NAVIGATE, CLOSE)
+ * @param {string} type - Event type (CREATE, ACTIVATE, NAVIGATE, CLOSE, HEARTBEAT)
  * @param {number} tabId - Tab ID from browser
- * @param {string} url - Tab URL (optional for CLOSE events)
+ * @param {string} url - Tab URL (optional for CLOSE and HEARTBEAT events)
+ * @param {Object} metadata - Additional event metadata (for HEARTBEAT events)
  * @returns {Object} - CoreEvent object
  */
-function createCoreEvent(type, tabId, url = '') {
+function createCoreEvent(type, tabId, url = '', metadata = {}) {
   const timestamp = Date.now();
-  return {
+  const event = {
     id: `evt_${timestamp}_${tabId}`,
     timestamp,
     type,
@@ -48,6 +49,13 @@ function createCoreEvent(type, tabId, url = '') {
     url,
     domain: getDomain(url)
   };
+  
+  // Add metadata for special event types like HEARTBEAT
+  if (type === 'HEARTBEAT' && metadata) {
+    Object.assign(event, metadata);
+  }
+  
+  return event;
 }
 
 /**
