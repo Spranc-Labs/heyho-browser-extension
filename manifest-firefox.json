@@ -20,7 +20,6 @@
       "src/background/listeners.js", 
       "src/background/cleanup.js",
       "src/background/init.js",
-      "test-aggregation-fix.js",
       "background.js"
     ]
   },

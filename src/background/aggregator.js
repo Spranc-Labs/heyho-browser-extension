@@ -70,7 +70,24 @@ async function processEvents() {
     return { success: false, error: 'Not initialized' };
   }
   
-  return await processor.processAllEvents();
+  try {
+    const result = await processor.processAllEvents();
+    
+    // Store aggregation timestamp for debug panel
+    if (result.success) {
+      const storage = (typeof browser !== 'undefined' ? 
+        browser.storage.local : chrome.storage.local);
+      await storage.set({
+        lastAggregationTime: Date.now()
+      });
+      console.log('Aggregation completed and timestamp stored');
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('Error in processEvents:', error);
+    return { success: false, error: error.message };
+  }
 }
 
 /**
