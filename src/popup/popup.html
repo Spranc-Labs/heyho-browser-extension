@@ -49,8 +49,16 @@
           </button>
         </div>
         <div class="sync-status" id="sync-status">
-          <span class="status-indicator" id="status-indicator">●</span>
-          <span id="status-text">Connected</span>
+          <div class="sync-info">
+            <span class="status-indicator" id="status-indicator">●</span>
+            <div class="sync-details">
+              <span id="status-text">Connected</span>
+              <span id="last-sync-time" class="sync-time">Never synced</span>
+            </div>
+          </div>
+          <button id="btn-sync-now" class="btn-icon" title="Sync now">
+            <span>🔄</span>
+          </button>
         </div>
       </div>
     </section>

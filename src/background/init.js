@@ -112,6 +112,8 @@ async function initialize() {
   const { setupDebugMessageHandlers } = self.DebugModule;
   const { init: initAuthManager } = self.AuthManager;
   const { setupAuthMessageHandlers } = self.AuthHandlers;
+  const { init: initSyncManager, setupSyncAlarm } = self.SyncManager;
+  const { setupSyncMessageHandlers } = self.SyncHandlers;
 
   // Log service worker lifecycle
   const startTime = Date.now();
@@ -136,6 +138,21 @@ async function initialize() {
 
   // Setup auth message handlers
   setupAuthMessageHandlers();
+
+  // Initialize sync manager
+  await initSyncManager();
+  if (IS_DEV_MODE) {
+    console.log('✅ Sync manager initialized');
+  }
+
+  // Setup periodic data sync alarm (every 5 minutes)
+  await setupSyncAlarm();
+  if (IS_DEV_MODE) {
+    console.log('✅ Data sync alarm configured');
+  }
+
+  // Setup sync message handlers
+  setupSyncMessageHandlers();
   
   // Run data migration for anonymous client ID (if module is available)
   if (self.AnonymousIdModule && self.AnonymousIdModule.migrateExistingData) {
