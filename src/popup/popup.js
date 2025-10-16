@@ -10,6 +10,7 @@ class DebugPanel {
     this.setupEventListeners();
     this.loadAuthState();
     this.loadStats();
+    this.loadSyncState();
   }
 
   /**
@@ -60,8 +61,8 @@ class DebugPanel {
 
       userEmail.textContent = authState.user.email || '-';
 
-      // Update sync status
-      this.updateSyncStatus('connected');
+      // Load sync state when user is authenticated
+      this.loadSyncState();
     } else {
       this.showLoggedOutState();
     }
@@ -76,6 +77,73 @@ class DebugPanel {
 
     loggedOut.style.display = 'block';
     loggedIn.style.display = 'none';
+  }
+
+  /**
+   * Load and display sync state
+   */
+  async loadSyncState() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getSyncState'
+      });
+
+      if (response.success && response.data) {
+        this.updateSyncUI(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load sync state:', error);
+    }
+  }
+
+  /**
+   * Update sync UI based on state
+   */
+  updateSyncUI(syncState) {
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+    const lastSyncTime = document.getElementById('last-sync-time');
+
+    // Remove all status classes
+    statusIndicator.classList.remove('connected', 'disconnected', 'syncing', 'error');
+
+    if (syncState.isSyncing) {
+      statusIndicator.classList.add('syncing');
+      statusText.textContent = 'Syncing...';
+    } else if (syncState.lastSyncStatus === 'success') {
+      statusIndicator.classList.add('connected');
+      statusText.textContent = 'Synced';
+    } else if (syncState.lastSyncStatus === 'failed' || syncState.lastSyncStatus === 'error') {
+      statusIndicator.classList.add('error');
+      statusText.textContent = 'Sync failed';
+    } else {
+      statusIndicator.classList.add('connected');
+      statusText.textContent = 'Connected';
+    }
+
+    // Update last sync time
+    if (syncState.lastSyncTime) {
+      const lastSyncDate = new Date(syncState.lastSyncTime);
+      const now = Date.now();
+      const diff = now - syncState.lastSyncTime;
+
+      let timeAgo;
+      if (diff < 60000) {
+        timeAgo = 'Just now';
+      } else if (diff < 3600000) {
+        const minutes = Math.floor(diff / 60000);
+        timeAgo = `${minutes}m ago`;
+      } else if (diff < 86400000) {
+        const hours = Math.floor(diff / 3600000);
+        timeAgo = `${hours}h ago`;
+      } else {
+        timeAgo = lastSyncDate.toLocaleDateString();
+      }
+
+      lastSyncTime.textContent = `Last sync: ${timeAgo}`;
+    } else {
+      lastSyncTime.textContent = 'Never synced';
+    }
   }
 
   /**
@@ -121,6 +189,13 @@ class DebugPanel {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', () => this.handleLogout());
     }
+
+    // Sync button listener
+    const syncBtn = document.getElementById('btn-sync-now');
+    if (syncBtn) {
+      syncBtn.addEventListener('click', () => this.handleSyncNow());
+    }
+
     // Aggregation controls
     document.getElementById('trigger-aggregation').addEventListener('click', () => {
       this.triggerAggregation();
@@ -387,6 +462,59 @@ class DebugPanel {
       this.log(`Error: ${error.message}`, 'error');
     } finally {
       logoutBtn.disabled = false;
+    }
+  }
+
+  /**
+   * Handle manual sync trigger
+   */
+  async handleSyncNow() {
+    const syncBtn = document.getElementById('btn-sync-now');
+    syncBtn.disabled = true;
+
+    // Update UI to show syncing state
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+    statusIndicator.classList.remove('connected', 'error');
+    statusIndicator.classList.add('syncing');
+    statusText.textContent = 'Syncing...';
+
+    this.log('Starting manual sync...', 'info');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'syncNow',
+        data: { force: false }
+      });
+
+      if (response.success) {
+        const synced = response.synced || 0;
+        if (synced > 0) {
+          this.log(`✅ Sync completed: ${synced} items synced`, 'success');
+        } else {
+          this.log('ℹ️ No new data to sync', 'info');
+        }
+
+        // Refresh sync state
+        await this.loadSyncState();
+      } else {
+        this.log(`❌ Sync failed: ${response.error}`, 'error');
+
+        // Update UI to show error state
+        statusIndicator.classList.remove('syncing');
+        statusIndicator.classList.add('error');
+        statusText.textContent = 'Sync failed';
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      this.log(`❌ Error: ${error.message}`, 'error');
+
+      // Update UI to show error state
+      statusIndicator.classList.remove('syncing');
+      statusIndicator.classList.add('error');
+      statusText.textContent = 'Sync failed';
+    } finally {
+      syncBtn.disabled = false;
     }
   }
 }

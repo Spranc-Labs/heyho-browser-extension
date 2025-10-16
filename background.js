@@ -15,6 +15,8 @@ if (typeof importScripts !== 'undefined') {
     'src/background/api-client.js',
     'src/background/auth-manager.js',
     'src/background/auth-handlers.js',
+    'src/background/sync-manager.js',
+    'src/background/sync-handlers.js',
     'src/background/triage.js',
     'src/background/events.js',
     'src/background/anonymousId.js',

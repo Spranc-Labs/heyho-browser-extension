@@ -211,6 +211,15 @@ const AuthManager = (function() {
           console.log('✅ Login successful:', authState.user);
         }
 
+        // Trigger data sync after successful login (if SyncManager available)
+        if (self.SyncManager && self.SyncManager.syncToBackend) {
+          setTimeout(() => {
+            self.SyncManager.syncToBackend().catch(err => {
+              console.error('Post-login sync failed:', err);
+            });
+          }, 1000); // Wait 1 second to let UI settle
+        }
+
         return { success: true, user: authState.user };
       }
 
