@@ -13,12 +13,58 @@
       <div class="version">v1.0.0</div>
     </header>
 
+    <!-- Authentication Section -->
+    <section class="auth-section" id="auth-section">
+      <!-- Logged Out State -->
+      <div id="auth-logged-out" class="auth-state" style="display: none;">
+        <div class="auth-message">
+          <span class="icon">🔒</span>
+          <div>
+            <h3>Sign in to sync your data</h3>
+            <p>Create an account or sign in to sync your browsing data to the cloud</p>
+          </div>
+        </div>
+        <div class="button-group">
+          <button id="btn-login" class="btn primary">
+            <span class="icon">🔑</span>
+            Sign In
+          </button>
+          <button id="btn-signup" class="btn secondary">
+            <span class="icon">✨</span>
+            Create Account
+          </button>
+        </div>
+      </div>
+
+      <!-- Logged In State -->
+      <div id="auth-logged-in" class="auth-state" style="display: none;">
+        <div class="user-profile">
+          <div class="user-avatar" id="user-avatar">👤</div>
+          <div class="user-info">
+            <div class="user-name" id="user-name">Loading...</div>
+            <div class="user-email" id="user-email">-</div>
+          </div>
+          <button id="btn-logout" class="btn-icon" title="Logout">
+            <span>🚪</span>
+          </button>
+        </div>
+        <div class="sync-status" id="sync-status">
+          <span class="status-indicator" id="status-indicator">●</span>
+          <span id="status-text">Connected</span>
+        </div>
+      </div>
+    </section>
+
     <section class="controls">
       <h2>Aggregation System</h2>
       <div class="button-group">
         <button id="trigger-aggregation" class="btn primary">
           <span class="icon">⚙️</span>
           Trigger Aggregation
+        </button>
+        <button id="run-migration" class="btn warning">
+          <span class="icon">🔄</span>
+          Run Migration
         </button>
         <button id="view-raw-events" class="btn secondary">
           <span class="icon">📝</span>

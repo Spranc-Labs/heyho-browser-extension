@@ -8,40 +8,89 @@
 // Configuration
 const HEARTBEAT_CONFIG = {
   intervalMs: 30000,        // Check every 30 seconds
-  idleThreshold: 60,        // User idle after 60 seconds of inactivity
+  idleThreshold: 15,        // User idle after 15 seconds of inactivity (reduced for testing)
   storageKey: 'heartbeats', // Storage key for heartbeat data
-  maxHeartbeats: 100        // Keep last 100 heartbeats in circular buffer
+  maxHeartbeats: 100,       // Keep last 100 heartbeats in circular buffer
+  alarmName: 'heartbeat-wake', // Alarm name for wake mechanism
+  alarmIntervalMinutes: 1   // Wake alarm fires every 1 minute
 };
 
 // Module state
 let heartbeatInterval = null;
 let heartbeatBuffer = [];
 let isInitialized = false;
+let lastHeartbeatTimestamp = 0;
 
 /**
  * Initialize the heartbeat system
  */
 async function initHeartbeat() {
   if (isInitialized) {
-    console.log('Heartbeat system already initialized');
+    console.log('⚠️ Heartbeat system already initialized, recovering if needed...');
+    await ensureHeartbeatRunning();
     return;
   }
-  
+
   try {
+    console.log('🚀 Initializing heartbeat system...');
+
     // Load existing heartbeats from storage
     await loadHeartbeats();
-    
-    // Start periodic heartbeat checks
-    startHeartbeatInterval();
-    
+
     // Set idle detection threshold
     chrome.idle.setDetectionInterval(HEARTBEAT_CONFIG.idleThreshold);
-    
+
+    // Setup wake alarm for service worker dormancy
+    await setupWakeAlarm();
+
+    // Start periodic heartbeat checks
+    startHeartbeatInterval();
+
     isInitialized = true;
-    console.log('Heartbeat system initialized');
-    
+    console.log('✅ Heartbeat system initialized');
+
   } catch (error) {
-    console.error('Failed to initialize heartbeat system:', error);
+    console.error('❌ Failed to initialize heartbeat system:', error);
+  }
+}
+
+/**
+ * Setup wake alarm for service worker dormancy recovery
+ */
+async function setupWakeAlarm() {
+  try {
+    // Clear any existing alarm
+    await chrome.alarms.clear(HEARTBEAT_CONFIG.alarmName);
+
+    // Create periodic alarm to wake service worker
+    await chrome.alarms.create(HEARTBEAT_CONFIG.alarmName, {
+      periodInMinutes: HEARTBEAT_CONFIG.alarmIntervalMinutes
+    });
+
+    console.log(`✅ Wake alarm created: fires every ${HEARTBEAT_CONFIG.alarmIntervalMinutes} minute(s)`);
+  } catch (error) {
+    console.error('❌ Failed to setup wake alarm:', error);
+  }
+}
+
+/**
+ * Ensure heartbeat is running (recovery mechanism)
+ */
+async function ensureHeartbeatRunning() {
+  const now = Date.now();
+  const timeSinceLastHeartbeat = now - lastHeartbeatTimestamp;
+  const expectedInterval = HEARTBEAT_CONFIG.intervalMs;
+
+  // If more than 2x the expected interval has passed, the interval likely died
+  if (timeSinceLastHeartbeat > expectedInterval * 2) {
+    console.log(`⚠️ Heartbeat interval appears dormant (${Math.round(timeSinceLastHeartbeat / 1000)}s since last beat)`);
+    console.log('🔄 Restarting heartbeat interval...');
+    startHeartbeatInterval();
+  } else if (heartbeatInterval === null) {
+    console.log('⚠️ Heartbeat interval is null, restarting...');
+    startHeartbeatInterval();
+  } else {
+    console.log('✅ Heartbeat interval is running normally');
   }
 }
 
@@ -52,16 +101,16 @@ function startHeartbeatInterval() {
   if (heartbeatInterval) {
     clearInterval(heartbeatInterval);
   }
-  
+
   // Initial heartbeat
   generateHeartbeat();
-  
+
   // Set up periodic heartbeats
   heartbeatInterval = setInterval(async () => {
     await generateHeartbeat();
   }, HEARTBEAT_CONFIG.intervalMs);
-  
-  console.log(`Heartbeat interval started: every ${HEARTBEAT_CONFIG.intervalMs / 1000} seconds`);
+
+  console.log(`💓 Heartbeat interval started: every ${HEARTBEAT_CONFIG.intervalMs / 1000} seconds`);
 }
 
 /**
@@ -80,21 +129,24 @@ function stopHeartbeat() {
  */
 async function generateHeartbeat() {
   try {
+    // Update last heartbeat timestamp
+    lastHeartbeatTimestamp = Date.now();
+
     // Query idle state
     const idleState = await chrome.idle.queryState(HEARTBEAT_CONFIG.idleThreshold);
-    
+
     // Get active tab information
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const activeTab = tabs[0];
-    
+
     // Get focused window
     const windows = await chrome.windows.getCurrent();
     const windowFocused = windows.focused;
-    
+
     // Create heartbeat event
     const heartbeat = {
       type: 'heartbeat',
-      timestamp: Date.now(),
+      timestamp: lastHeartbeatTimestamp,
       idleState: idleState,
       activeTabId: activeTab?.id || null,
       activeTabUrl: activeTab?.url || null,
@@ -102,14 +154,14 @@ async function generateHeartbeat() {
       windowFocused: windowFocused,
       engagement: calculateEngagement(idleState, activeTab, windowFocused)
     };
-    
+
     // Add to buffer
     await addHeartbeat(heartbeat);
     
     // Create and save heartbeat event through the EventsModule for proper triage and storage
     if (self.EventsModule && self.EventsModule.createCoreEvent && 
         self.EventsModule.logAndSaveEvent) {
-      const heartbeatEvent = self.EventsModule.createCoreEvent(
+      const heartbeatEvent = await self.EventsModule.createCoreEvent(
         'HEARTBEAT', 
         activeTab?.id || 0, 
         activeTab?.url || '', 
@@ -287,6 +339,26 @@ async function triggerHeartbeat() {
   return await generateHeartbeat();
 }
 
+/**
+ * Handle alarm events for wake mechanism
+ */
+function handleAlarm(alarm) {
+  if (alarm.name === HEARTBEAT_CONFIG.alarmName) {
+    console.log('⏰ Wake alarm fired, checking heartbeat status...');
+    ensureHeartbeatRunning();
+  }
+}
+
+/**
+ * Setup alarm listener
+ */
+function setupAlarmListener() {
+  if (chrome.alarms && chrome.alarms.onAlarm) {
+    chrome.alarms.onAlarm.addListener(handleAlarm);
+    console.log('✅ Alarm listener registered for heartbeat wake events');
+  }
+}
+
 // Export the heartbeat module
 self.HeartbeatModule = {
   init: initHeartbeat,
@@ -295,14 +367,19 @@ self.HeartbeatModule = {
   getRecent: getRecentHeartbeats,
   getStats: getEngagementStats,
   clear: clearHeartbeats,
+  ensureRunning: ensureHeartbeatRunning,
+  setupAlarmListener: setupAlarmListener,
   // Expose for testing
   _calculateEngagement: calculateEngagement,
   _config: HEARTBEAT_CONFIG
 };
 
+// Setup alarm listener immediately
+setupAlarmListener();
+
 // Auto-initialize if this is the main heartbeat module
 if (typeof self.heartbeatInitialized === 'undefined') {
   self.heartbeatInitialized = true;
   // Don't auto-init, let background.js control initialization
-  console.log('Heartbeat module loaded, waiting for initialization');
+  console.log('Heartbeat module loaded, alarm listener ready, waiting for initialization');
 }

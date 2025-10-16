@@ -9,6 +9,21 @@
  */
 function setupDebugMessageHandlers() {
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    // Only handle debug-specific actions
+    const debugActions = [
+      'getDebugStats',
+      'triggerAggregation',
+      'getRawEvents',
+      'exportData',
+      'exportAllData',
+      'runMigration',
+      'checkModules'
+    ];
+
+    if (!request.action || !debugActions.includes(request.action)) {
+      return false; // Let other handlers process this message
+    }
+
     handleDebugMessage(request, sender, sendResponse);
     return true; // Keep message channel open for async responses
   });
@@ -40,8 +55,18 @@ async function handleDebugMessage(request, sender, sendResponse) {
       await handleExportAllData(sendResponse);
       break;
       
+    case 'runMigration':
+      await handleRunMigration(sendResponse);
+      break;
+      
+    case 'checkModules':
+      await handleCheckModules(sendResponse);
+      break;
+
     default:
-      sendResponse({ success: false, error: 'Unknown action' });
+      // This should never happen since we filter actions in the listener
+      console.error('Unexpected debug action:', request.action);
+      sendResponse({ success: false, error: 'Unexpected action' });
     }
   } catch (error) {
     console.error('Debug message handler error:', error);
@@ -157,11 +182,75 @@ async function handleExportData(dataType, sendResponse) {
 }
 
 /**
+ * Check module loading status
+ */
+async function handleCheckModules(sendResponse) {
+  try {
+    const moduleStatus = {
+      StorageModule: !!self.StorageModule,
+      AnonymousIdModule: !!self.AnonymousIdModule,
+      EventsModule: !!self.EventsModule,
+      aggregator: !!self.aggregator
+    };
+    
+    if (self.AnonymousIdModule) {
+      moduleStatus.AnonymousIdMethods = Object.keys(self.AnonymousIdModule);
+    }
+    
+    console.log('🔍 Module Status:', moduleStatus);
+    sendResponse({ success: true, modules: moduleStatus });
+  } catch (error) {
+    console.error('❌ Module check failed:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
+ * Manually run anonymous client ID migration
+ */
+async function handleRunMigration(sendResponse) {
+  try {
+    console.log('🔍 DEBUG: Checking AnonymousIdModule availability...');
+    console.log('🔍 DEBUG: self.AnonymousIdModule exists:', !!self.AnonymousIdModule);
+    
+    if (self.AnonymousIdModule) {
+      console.log('🔍 DEBUG: Available methods:', Object.keys(self.AnonymousIdModule));
+    }
+    
+    if (!self.AnonymousIdModule || !self.AnonymousIdModule.migrateExistingData) {
+      const errorMsg = !self.AnonymousIdModule 
+        ? 'AnonymousIdModule not found' 
+        : 'migrateExistingData method not found';
+      console.error('❌', errorMsg);
+      sendResponse({ success: false, error: `Anonymous ID module not available: ${errorMsg}` });
+      return;
+    }
+    
+    console.log('🔄 Starting manual migration...');
+    await self.AnonymousIdModule.migrateExistingData();
+    console.log('✅ Manual migration completed');
+    
+    sendResponse({ success: true, message: 'Migration completed successfully' });
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    sendResponse({ success: false, error: error.message });
+  }
+}
+
+/**
  * Exports all aggregation data
  */
 async function handleExportAllData(sendResponse) {
   try {
     const { getAllEvents } = self.StorageModule;
+    
+    // Check if migration has been run
+    let migrationStatus = 'unknown';
+    if (self.AnonymousIdModule && self.AnonymousIdModule.isMigrationCompleted) {
+      migrationStatus = await self.AnonymousIdModule.isMigrationCompleted() ? 'completed' : 'pending';
+    }
+    
+    console.log(`🔍 DEBUG: Migration status: ${migrationStatus}`);
     
     // Get all data in parallel
     const [rawEvents, pageVisits, tabAggregates] = await Promise.all([

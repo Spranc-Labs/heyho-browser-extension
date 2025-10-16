@@ -8,13 +8,126 @@ class DebugPanel {
   constructor() {
     this.logContainer = document.getElementById('log-container');
     this.setupEventListeners();
+    this.loadAuthState();
     this.loadStats();
   }
 
+  /**
+   * Load and display authentication state
+   */
+  async loadAuthState() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getAuthState'
+      });
+
+      if (response.success && response.data) {
+        this.updateAuthUI(response.data);
+      } else {
+        this.showLoggedOutState();
+      }
+    } catch (error) {
+      console.error('Failed to load auth state:', error);
+      this.showLoggedOutState();
+    }
+  }
+
+  /**
+   * Update auth UI based on state
+   */
+  updateAuthUI(authState) {
+    const loggedOut = document.getElementById('auth-logged-out');
+    const loggedIn = document.getElementById('auth-logged-in');
+
+    if (authState.isAuthenticated && authState.user) {
+      // Show logged in state
+      loggedOut.style.display = 'none';
+      loggedIn.style.display = 'block';
+
+      // Update user info
+      const userName = document.getElementById('user-name');
+      const userEmail = document.getElementById('user-email');
+      const userAvatar = document.getElementById('user-avatar');
+
+      if (authState.user.firstName && authState.user.lastName) {
+        userName.textContent = `${authState.user.firstName} ${authState.user.lastName}`;
+        // Generate initials for avatar
+        const initials = `${authState.user.firstName[0]}${authState.user.lastName[0]}`;
+        userAvatar.textContent = initials.toUpperCase();
+      } else {
+        userName.textContent = 'User';
+      }
+
+      userEmail.textContent = authState.user.email || '-';
+
+      // Update sync status
+      this.updateSyncStatus('connected');
+    } else {
+      this.showLoggedOutState();
+    }
+  }
+
+  /**
+   * Show logged out state
+   */
+  showLoggedOutState() {
+    const loggedOut = document.getElementById('auth-logged-out');
+    const loggedIn = document.getElementById('auth-logged-in');
+
+    loggedOut.style.display = 'block';
+    loggedIn.style.display = 'none';
+  }
+
+  /**
+   * Update sync status indicator
+   */
+  updateSyncStatus(status) {
+    const statusIndicator = document.getElementById('status-indicator');
+    const statusText = document.getElementById('status-text');
+
+    // Remove all status classes
+    statusIndicator.classList.remove('connected', 'disconnected', 'syncing');
+
+    switch (status) {
+    case 'connected':
+      statusIndicator.classList.add('connected');
+      statusText.textContent = 'Connected';
+      break;
+    case 'disconnected':
+      statusIndicator.classList.add('disconnected');
+      statusText.textContent = 'Disconnected';
+      break;
+    case 'syncing':
+      statusIndicator.classList.add('syncing');
+      statusText.textContent = 'Syncing...';
+      break;
+    }
+  }
+
   setupEventListeners() {
+    // Auth button listeners
+    const loginBtn = document.getElementById('btn-login');
+    const signupBtn = document.getElementById('btn-signup');
+    const logoutBtn = document.getElementById('btn-logout');
+
+    if (loginBtn) {
+      loginBtn.addEventListener('click', () => this.openLoginPage());
+    }
+
+    if (signupBtn) {
+      signupBtn.addEventListener('click', () => this.openSignupPage());
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', () => this.handleLogout());
+    }
     // Aggregation controls
     document.getElementById('trigger-aggregation').addEventListener('click', () => {
       this.triggerAggregation();
+    });
+    
+    document.getElementById('run-migration').addEventListener('click', () => {
+      this.runMigration();
     });
 
     document.getElementById('view-raw-events').addEventListener('click', () => {
@@ -51,6 +164,33 @@ class DebugPanel {
       }
     } catch (error) {
       this.log(`Error loading stats: ${error.message}`, 'error');
+    }
+  }
+
+  async runMigration() {
+    const button = document.getElementById('run-migration');
+    button.classList.add('loading');
+    button.disabled = true;
+
+    this.log('Running anonymous client ID migration...', 'info');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'runMigration'
+      });
+
+      if (response.success) {
+        this.log('✅ Migration completed successfully', 'success');
+        this.loadStats(); // Refresh stats
+      } else {
+        this.log(`❌ Migration failed: ${response.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('Migration error:', error);
+      this.log(`❌ Error: ${error.message}`, 'error');
+    } finally {
+      button.classList.remove('loading');
+      button.disabled = false;
     }
   }
 
@@ -197,13 +337,56 @@ class DebugPanel {
     const logEntry = document.createElement('div');
     logEntry.className = `log-entry ${type}`;
     logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-    
+
     this.logContainer.appendChild(logEntry);
     this.logContainer.scrollTop = this.logContainer.scrollHeight;
 
     // Keep only last 50 log entries
     while (this.logContainer.children.length > 50) {
       this.logContainer.removeChild(this.logContainer.firstChild);
+    }
+  }
+
+  /**
+   * Open login page in new tab
+   */
+  openLoginPage() {
+    const loginUrl = chrome.runtime.getURL('src/auth/login.html');
+    chrome.tabs.create({ url: loginUrl });
+  }
+
+  /**
+   * Open signup page in new tab
+   */
+  openSignupPage() {
+    const signupUrl = chrome.runtime.getURL('src/auth/signup.html');
+    chrome.tabs.create({ url: signupUrl });
+  }
+
+  /**
+   * Handle logout
+   */
+  async handleLogout() {
+    const logoutBtn = document.getElementById('btn-logout');
+    logoutBtn.disabled = true;
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'logout'
+      });
+
+      if (response.success) {
+        this.log('Logged out successfully', 'success');
+        // Refresh auth state
+        await this.loadAuthState();
+      } else {
+        this.log(`Logout failed: ${response.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      this.log(`Error: ${error.message}`, 'error');
+    } finally {
+      logoutBtn.disabled = false;
     }
   }
 }
