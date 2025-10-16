@@ -37,7 +37,8 @@ const ApiClient = (function() {
       body = null,
       headers = {},
       authenticated = false,
-      timeout = 30000
+      timeout = 30000,
+      _retryCount = 0 // Internal flag to prevent infinite retry loops
     } = options;
 
     const url = `${getBaseURL()}${endpoint}`;
@@ -91,7 +92,44 @@ const ApiClient = (function() {
         data = await response.text();
       }
 
-      // Handle HTTP errors
+      // Handle 401 Unauthorized - attempt token refresh and retry
+      if (response.status === 401 && authenticated && _retryCount === 0) {
+        console.log('⚠️ 401 Unauthorized - attempting token refresh and retry');
+
+        // Skip refresh for auth endpoints (avoid infinite loop)
+        if (endpoint.includes('/auth/refresh') || endpoint.includes('/auth/login')) {
+          throw new ApiError(
+            data.message || data.error || 'Authentication failed',
+            response.status,
+            data
+          );
+        }
+
+        // Attempt to refresh token
+        if (self.AuthManager && self.AuthManager.refreshTokens) {
+          const refreshSuccess = await self.AuthManager.refreshTokens();
+
+          if (refreshSuccess) {
+            // Retry the original request with new token
+            console.log('✅ Token refreshed, retrying original request');
+            return request(endpoint, { ...options, _retryCount: 1 });
+          } else {
+            console.log('❌ Token refresh failed, clearing auth');
+            // Refresh failed, user needs to re-login
+            if (self.AuthManager.logout) {
+              await self.AuthManager.logout();
+            }
+          }
+        }
+
+        throw new ApiError(
+          'Session expired. Please log in again.',
+          response.status,
+          data
+        );
+      }
+
+      // Handle other HTTP errors
       if (!response.ok) {
         throw new ApiError(
           data.message || data.error || `HTTP ${response.status}`,

@@ -79,13 +79,100 @@ const AuthManager = (function() {
     // Check if token expired
     if (now >= expiry) {
       if (IS_DEV_MODE) {
-        console.log('⚠️ Access token expired');
+        console.log('⚠️ Access token expired, attempting refresh...');
       }
-      // TODO: Implement token refresh
-      return false;
+      // Attempt to refresh token
+      const refreshResult = await refreshTokens();
+      return refreshResult;
     }
 
     return true;
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async function refreshTokens() {
+    try {
+      if (!authState.tokens || !authState.tokens.refreshToken) {
+        if (IS_DEV_MODE) {
+          console.log('⚠️ No refresh token available');
+        }
+        return false;
+      }
+
+      if (IS_DEV_MODE) {
+        console.log('🔄 Refreshing access token...');
+      }
+
+      const response = await self.ApiClient.post('/auth/refresh', {
+        refreshToken: authState.tokens.refreshToken
+      });
+
+      if (response.success && response.data) {
+        const tokenData = response.data.data || response.data;
+
+        // Store new tokens
+        await storeTokens(tokenData);
+
+        // Update auth state
+        authState.tokens = {
+          accessToken: tokenData.AccessToken,
+          idToken: tokenData.IdToken,
+          refreshToken: tokenData.RefreshToken,
+          expiry: Date.now() + (tokenData.ExpiresIn * 1000)
+        };
+
+        // Update user data from new ID token
+        authState.user = decodeIdToken(tokenData.IdToken);
+
+        if (IS_DEV_MODE) {
+          console.log('✅ Token refreshed successfully');
+        }
+
+        return true;
+      }
+
+      if (IS_DEV_MODE) {
+        console.log('❌ Token refresh failed:', response.error);
+      }
+      return false;
+
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Ensure we have a valid access token
+   * Automatically refreshes if token expires within 5 minutes
+   * @returns {Promise<string|null>} Valid access token or null
+   */
+  async function ensureValidToken() {
+    if (!authState.isAuthenticated || !authState.tokens) {
+      return null;
+    }
+
+    const now = Date.now();
+    const expiry = authState.tokens.expiry;
+    const fiveMinutes = 5 * 60 * 1000;
+
+    // Refresh if token expires in less than 5 minutes
+    if (expiry - now < fiveMinutes) {
+      if (IS_DEV_MODE) {
+        console.log('🔄 Token expiring soon, preemptively refreshing...');
+      }
+
+      const refreshSuccess = await refreshTokens();
+      if (!refreshSuccess) {
+        // Refresh failed, clear auth
+        await clearAuth();
+        return null;
+      }
+    }
+
+    return authState.tokens.accessToken;
   }
 
   /**
@@ -352,6 +439,8 @@ const AuthManager = (function() {
     verifyEmail,
     resendVerification,
     logout,
+    refreshTokens,
+    ensureValidToken,
     getCurrentUser,
     isAuthenticated,
     getAccessToken,
