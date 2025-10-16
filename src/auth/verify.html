@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email - HeyHo Extension</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-header">
+      <div class="auth-logo">📧</div>
+      <h1>Verify Your Email</h1>
+      <p>We sent a 6-digit code to <strong id="user-email"></strong></p>
+    </div>
+
+    <div class="auth-content">
+      <!-- Alert messages -->
+      <div id="alert-container"></div>
+
+      <!-- Verification form -->
+      <form id="verify-form">
+        <div class="form-group">
+          <label for="verification-code">Verification Code</label>
+          <input
+            type="text"
+            id="verification-code"
+            name="verification_code"
+            placeholder="000000"
+            maxlength="6"
+            pattern="[0-9]{6}"
+            class="verification-input"
+            required
+            autocomplete="off"
+          >
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="verify-btn">
+          Verify Email
+        </button>
+      </form>
+
+      <div class="divider">OR</div>
+
+      <button type="button" class="btn btn-link" id="resend-btn">
+        Didn't receive the code? Resend
+      </button>
+    </div>
+
+    <div class="auth-footer">
+      <p>Need help?</p>
+      <a href="login.html" id="back-link">Back to login</a>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+</body>
+</html>

@@ -51,6 +51,14 @@ class EventProcessor {
         }
       }
       
+      // Complete any remaining active visit before saving
+      if (this.batch.activeVisit) {
+        const finalVisit = new self.PageVisit(this.batch.activeVisit);
+        finalVisit.complete(Date.now());
+        this.batch.addPageVisit(finalVisit);
+        console.log('📝 Completed active visit before saving');
+      }
+      
       console.log(`📊 Batch processing complete: ${processedCount} processed, ${errorCount} errors`);
       console.log(`📊 Batch contents: ${this.batch.pageVisits.length} page visits, ` +
                   `${this.batch.tabAggregates.size} tab aggregates`);
@@ -145,11 +153,25 @@ class EventProcessor {
     }
     
     // Create new active visit
-    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp);
-    this.batch.activeVisit = newVisit.toJSON();
+    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null);
+    // Store the full visit object data, not the JSON representation
+    this.batch.activeVisit = {
+      id: newVisit.id,
+      tabId: newVisit.tabId,
+      url: newVisit.url,
+      domain: newVisit.domain,
+      timestamp: newVisit.timestamp,
+      duration: newVisit.duration,
+      isActive: newVisit.isActive,
+      anonymousClientId: newVisit.anonymousClientId,
+      activeDuration: newVisit.activeDuration,
+      idlePeriods: newVisit.idlePeriods,
+      engagementRate: newVisit.engagementRate,
+      lastHeartbeat: newVisit.lastHeartbeat
+    };
     
     // Update tab aggregate
-    const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp);
+    const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp, event.anonymousClientId || null);
     if (this.batch.activeVisit) {
       const duration = timestamp - (aggregate.lastActiveTime || timestamp);
       aggregate.updateActivity(domain, duration, url, timestamp);
@@ -162,14 +184,50 @@ class EventProcessor {
    * Handle tab activation event
    */
   _handleTabActivate(event) {
-    const { tabId, timestamp } = event;
+    const { tabId, url, timestamp } = event;
     
     if (!tabId) {
       throw new Error('Tab activate event missing tabId');
     }
     
-    // Update last active time for the tab
-    const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp);
+    // If we have a URL, treat this as a page view (since we might not get CREATE events)
+    if (url) {
+      const domain = self.UrlUtils.extractDomain(url);
+      
+      // Complete previous visit if exists for this tab
+      if (this.batch.activeVisit && this.batch.activeVisit.tabId === tabId) {
+        const completedVisit = new self.PageVisit(this.batch.activeVisit);
+        completedVisit.complete(timestamp);
+        this.batch.addPageVisit(completedVisit);
+      }
+      
+      // Create new active visit
+      const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null);
+      // Store the full visit object data
+      this.batch.activeVisit = {
+        id: newVisit.id,
+        tabId: newVisit.tabId,
+        url: newVisit.url,
+        domain: newVisit.domain,
+        timestamp: newVisit.timestamp,
+        duration: newVisit.duration,
+        isActive: newVisit.isActive,
+        anonymousClientId: newVisit.anonymousClientId,
+        activeDuration: newVisit.activeDuration,
+        idlePeriods: newVisit.idlePeriods,
+        engagementRate: newVisit.engagementRate,
+        lastHeartbeat: newVisit.lastHeartbeat
+      };
+      
+      // Update tab aggregate with domain information
+      const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp, event.anonymousClientId || null);
+      aggregate.updateActivity(domain, 0, url, timestamp);
+      
+      return { type: 'tab_activate', tabId, domain };
+    }
+    
+    // Just update last active time if no URL
+    const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp, event.anonymousClientId || null);
     aggregate.lastActiveTime = timestamp;
     
     return { type: 'tab_activate', tabId };
@@ -222,11 +280,25 @@ class EventProcessor {
     }
     
     // Create new active visit
-    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp);
-    this.batch.activeVisit = newVisit.toJSON();
+    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null);
+    // Store the full visit object data, not the JSON representation
+    this.batch.activeVisit = {
+      id: newVisit.id,
+      tabId: newVisit.tabId,
+      url: newVisit.url,
+      domain: newVisit.domain,
+      timestamp: newVisit.timestamp,
+      duration: newVisit.duration,
+      isActive: newVisit.isActive,
+      anonymousClientId: newVisit.anonymousClientId,
+      activeDuration: newVisit.activeDuration,
+      idlePeriods: newVisit.idlePeriods,
+      engagementRate: newVisit.engagementRate,
+      lastHeartbeat: newVisit.lastHeartbeat
+    };
     
     // Update tab aggregate
-    const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp);
+    const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp, event.anonymousClientId || null);
     aggregate.updateActivity(domain, 0, url, timestamp);
     
     return { 
@@ -241,20 +313,69 @@ class EventProcessor {
    * Handle heartbeat event for engagement tracking
    */
   _handleHeartbeat(event) {
-    const { activeTabId, engagement } = event;
+    const { tabId, url, engagement, timestamp } = event;
+    const activeTabId = event.activeTabId || tabId;
     
     if (!engagement) {
       return { type: 'heartbeat', skipped: true, reason: 'No engagement data' };
     }
     
-    // Update active visit if it exists and matches the active tab
+    // If there's no active visit but we have URL info, create one
+    if (!this.batch.activeVisit && url && tabId) {
+      const domain = self.UrlUtils.extractDomain(url);
+      const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null);
+      
+      // Store the full visit object data
+      this.batch.activeVisit = {
+        id: newVisit.id,
+        tabId: newVisit.tabId,
+        url: newVisit.url,
+        domain: newVisit.domain,
+        timestamp: newVisit.timestamp,
+        duration: newVisit.duration,
+        isActive: newVisit.isActive,
+        anonymousClientId: newVisit.anonymousClientId,
+        activeDuration: newVisit.activeDuration,
+        idlePeriods: newVisit.idlePeriods,
+        engagementRate: newVisit.engagementRate,
+        lastHeartbeat: newVisit.lastHeartbeat
+      };
+      
+      // Update tab aggregate
+      const aggregate = this.batch.getOrCreateTabAggregate(tabId, timestamp, event.anonymousClientId || null);
+      aggregate.updateActivity(domain, 0, url, timestamp);
+    }
+    
+    // Update active visit if it exists and matches the tab
     if (this.batch.activeVisit && this.batch.activeVisit.tabId === activeTabId) {
       // Create a PageVisit instance to use the updateEngagement method
       const activeVisit = new self.PageVisit(this.batch.activeVisit);
       activeVisit.updateEngagement(event);
       
-      // Update the stored active visit
-      this.batch.activeVisit = activeVisit.toJSON();
+      // Update the stored active visit with full data
+      this.batch.activeVisit = {
+        id: activeVisit.id,
+        tabId: activeVisit.tabId,
+        url: activeVisit.url,
+        domain: activeVisit.domain,
+        timestamp: activeVisit.timestamp,
+        duration: activeVisit.duration,
+        isActive: activeVisit.isActive,
+        anonymousClientId: activeVisit.anonymousClientId,
+        activeDuration: activeVisit.activeDuration,
+        idlePeriods: activeVisit.idlePeriods,
+        engagementRate: activeVisit.engagementRate,
+        lastHeartbeat: activeVisit.lastHeartbeat
+      };
+      
+      // Update tab aggregate's active duration if engaged
+      if (engagement.isEngaged) {
+        const aggregate = this.batch.tabAggregates.get(activeTabId);
+        if (aggregate) {
+          aggregate.totalActiveDuration += 30000; // Add 30 seconds for each engaged heartbeat
+          aggregate.lastActiveTime = timestamp;
+        }
+      }
       
       return {
         type: 'heartbeat',

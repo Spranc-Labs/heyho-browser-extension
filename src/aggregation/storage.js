@@ -192,10 +192,51 @@ class AggregationStorage {
         console.log(`Total page visits after save: ${allVisits.length}`);
       }
       
-      // Save tab aggregates
+      // Merge and save tab aggregates
       if (batch.tabAggregates.size > 0) {
-        console.log(`Saving ${batch.tabAggregates.size} tab aggregates...`);
-        promises.push(this.saveTabAggregates(batch.tabAggregates));
+        console.log(`Merging ${batch.tabAggregates.size} tab aggregates...`);
+        
+        // Get existing aggregates
+        const existingAggregates = await this.getTabAggregates();
+        const aggregateMap = new Map();
+        
+        // Add existing aggregates to map
+        for (const agg of existingAggregates) {
+          aggregateMap.set(agg.tabId, agg);
+        }
+        
+        // Merge new aggregates (overwrite if exists)
+        for (const [tabId, newAgg] of batch.tabAggregates) {
+          const newAggJSON = newAgg.toJSON();
+          
+          // If aggregate exists, merge the data
+          if (aggregateMap.has(tabId)) {
+            const existing = aggregateMap.get(tabId);
+            // Merge domain durations
+            for (const [domain, duration] of Object.entries(newAggJSON.domainDurations || {})) {
+              existing.domainDurations[domain] = (existing.domainDurations[domain] || 0) + duration;
+            }
+            // Update other fields
+            existing.lastActiveTime = newAggJSON.lastActiveTime;
+            existing.totalActiveDuration += newAggJSON.totalActiveDuration;
+            existing.pageCount += newAggJSON.pageCount;
+            existing.currentUrl = newAggJSON.currentUrl;
+            existing.currentDomain = newAggJSON.currentDomain;
+            // Recalculate statistics
+            existing.statistics = {
+              mostVisitedDomain: this._getMostVisitedDomain(existing.domainDurations),
+              averagePageDuration: existing.pageCount > 0 ? 
+                Math.round(existing.totalActiveDuration / existing.pageCount) : 0
+            };
+          } else {
+            aggregateMap.set(tabId, newAggJSON);
+          }
+        }
+        
+        // Convert map back to array and save
+        const mergedAggregates = Array.from(aggregateMap.values());
+        promises.push(this.saveTabAggregates(mergedAggregates));
+        console.log(`Total tab aggregates after merge: ${mergedAggregates.length}`);
       }
       
       // Don't clear events here - that's handled by the processor after successful save
@@ -287,6 +328,20 @@ class AggregationStorage {
   _countUniqueDomains(visits) {
     const domains = new Set(visits.map(v => v.domain).filter(Boolean));
     return domains.size;
+  }
+
+  _getMostVisitedDomain(domainDurations) {
+    let maxDuration = 0;
+    let mostVisited = null;
+    
+    for (const [domain, duration] of Object.entries(domainDurations || {})) {
+      if (duration > maxDuration) {
+        maxDuration = duration;
+        mostVisited = domain;
+      }
+    }
+    
+    return mostVisited;
   }
 }
 

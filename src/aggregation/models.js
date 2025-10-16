@@ -15,6 +15,7 @@ class PageVisit {
     this.timestamp = data.timestamp;
     this.duration = data.duration || 0;
     this.isActive = data.isActive || false;
+    this.anonymousClientId = data.anonymousClientId;
     
     // Engagement tracking fields
     this.activeDuration = data.activeDuration || 0;
@@ -23,13 +24,14 @@ class PageVisit {
     this.lastHeartbeat = data.lastHeartbeat || null;
   }
 
-  static createFromEvent(tabId, url, domain, timestamp) {
+  static createFromEvent(tabId, url, domain, timestamp, anonymousClientId) {
     return new PageVisit({
       id: `pv_${timestamp}_${tabId}`, // Match the format from your existing data
       tabId,
       url,
       domain,
       timestamp,
+      anonymousClientId,
       isActive: true,
       activeDuration: 0,
       idlePeriods: [],
@@ -40,6 +42,15 @@ class PageVisit {
   complete(endTimestamp) {
     this.duration = endTimestamp - this.timestamp;
     this.isActive = false;
+    
+    // Close any open idle period when visit completes
+    const lastIdlePeriod = this.idlePeriods[this.idlePeriods.length - 1];
+    if (lastIdlePeriod && !lastIdlePeriod.end) {
+      lastIdlePeriod.end = endTimestamp;
+      lastIdlePeriod.durationMs = endTimestamp - lastIdlePeriod.start;
+      lastIdlePeriod.resumeReason = 'visit_ended';
+    }
+    
     this.calculateEngagementRate();
     return this;
   }
@@ -59,6 +70,14 @@ class PageVisit {
       // Add time since last heartbeat (or use 30 seconds as default)
       const timeSinceLastHeartbeat = 30000; // 30 seconds default
       this.activeDuration += timeSinceLastHeartbeat;
+      
+      // End any open idle period when user becomes active again
+      const lastIdlePeriod = this.idlePeriods[this.idlePeriods.length - 1];
+      if (lastIdlePeriod && !lastIdlePeriod.end) {
+        lastIdlePeriod.end = heartbeat.timestamp;
+        lastIdlePeriod.durationMs = heartbeat.timestamp - lastIdlePeriod.start;
+        lastIdlePeriod.resumeReason = heartbeat.engagement.reason; // Why they became active again
+      }
     } else {
       // Track idle period if not already idle
       const lastIdlePeriod = this.idlePeriods[this.idlePeriods.length - 1];
@@ -66,7 +85,10 @@ class PageVisit {
         // Start new idle period
         this.idlePeriods.push({
           start: heartbeat.timestamp,
-          reason: heartbeat.engagement.reason
+          reason: heartbeat.engagement.reason,
+          end: null,
+          durationMs: null,
+          resumeReason: null
         });
       }
     }
@@ -111,7 +133,10 @@ class PageVisit {
       activeDuration: this.activeDuration,
       idlePeriods: this.idlePeriods,
       engagementRate: this.engagementRate,
-      lastHeartbeat: this.lastHeartbeat
+      lastHeartbeat: this.lastHeartbeat,
+      
+      // Anonymous client ID for data association
+      anonymousClientId: this.anonymousClientId
     };
   }
 }
@@ -129,12 +154,14 @@ class TabAggregate {
     this.pageCount = data.pageCount || 0;
     this.currentUrl = data.currentUrl || null;
     this.currentDomain = data.currentDomain || null;
+    this.anonymousClientId = data.anonymousClientId;
   }
 
-  static createNew(tabId, timestamp) {
+  static createNew(tabId, timestamp, anonymousClientId) {
     return new TabAggregate({
       tabId,
       startTime: timestamp,
+      anonymousClientId,
       lastActiveTime: timestamp
     });
   }
@@ -180,7 +207,9 @@ class TabAggregate {
       statistics: {
         mostVisitedDomain: this.getMostVisitedDomain(),
         averagePageDuration: this.getAveragePageDuration()
-      }
+      },
+      // Anonymous client ID for data association
+      anonymousClientId: this.anonymousClientId
     };
   }
 }
@@ -218,9 +247,9 @@ class AggregationBatch {
     this.errors.push(error);
   }
 
-  getOrCreateTabAggregate(tabId, timestamp) {
+  getOrCreateTabAggregate(tabId, timestamp, anonymousClientId) {
     if (!this.tabAggregates.has(tabId)) {
-      this.tabAggregates.set(tabId, TabAggregate.createNew(tabId, timestamp));
+      this.tabAggregates.set(tabId, TabAggregate.createNew(tabId, timestamp, anonymousClientId));
     }
     return this.tabAggregates.get(tabId);
   }

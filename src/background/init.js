@@ -22,6 +22,39 @@ async function initializeStorage() {
 }
 
 /**
+ * Recover active session from previous browser session
+ */
+async function recoverActiveSession() {
+  try {
+    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const result = await storage.get('activeVisit');
+    
+    if (result.activeVisit) {
+      console.log('📚 Found active visit from previous session, completing it...');
+      
+      // Create a page visit and complete it
+      const { PageVisit } = self;
+      const recoveredVisit = new PageVisit(result.activeVisit);
+      recoveredVisit.complete(Date.now());
+      
+      // Save the completed visit
+      const visitsResult = await storage.get('pageVisits');
+      const pageVisits = visitsResult.pageVisits || [];
+      pageVisits.push(recoveredVisit.toJSON());
+      
+      await storage.set({ 
+        pageVisits,
+        activeVisit: null  // Clear the active visit
+      });
+      
+      console.log('✅ Recovered and completed previous session visit');
+    }
+  } catch (error) {
+    console.error('Failed to recover active session:', error);
+  }
+}
+
+/**
  * Run the complete initialization sequence
  */
 async function initialize() {
@@ -31,17 +64,50 @@ async function initialize() {
   const { init: initAggregator } = self.aggregator;
   const { init: initHeartbeat } = self.HeartbeatModule;
   const { setupDebugMessageHandlers } = self.DebugModule;
-  
+  const { init: initAuthManager } = self.AuthManager;
+  const { setupAuthMessageHandlers } = self.AuthHandlers;
+
+  // Log service worker lifecycle
+  const startTime = Date.now();
+  console.log('═══════════════════════════════════════════════');
+  console.log('🚀 SERVICE WORKER STARTING');
+  console.log(`   Time: ${new Date(startTime).toLocaleTimeString()}`);
+  console.log('═══════════════════════════════════════════════');
+
   console.log('🚀 HeyHo background script loaded and ready to track events!');
   if (IS_DEV_MODE) {
     console.log('📝 Dev mode is enabled - you will see event logs and tables');
   }
-  
+
   // Initialize storage
   await initializeStorage();
+
+  // Initialize authentication manager
+  await initAuthManager();
+  if (IS_DEV_MODE) {
+    console.log('✅ Authentication manager initialized');
+  }
+
+  // Setup auth message handlers
+  setupAuthMessageHandlers();
+  
+  // Run data migration for anonymous client ID (if module is available)
+  if (self.AnonymousIdModule && self.AnonymousIdModule.migrateExistingData) {
+    try {
+      await self.AnonymousIdModule.migrateExistingData();
+      if (IS_DEV_MODE) {
+        console.log('✅ Anonymous client ID migration completed');
+      }
+    } catch (error) {
+      console.error('❌ Anonymous client ID migration failed:', error);
+    }
+  }
   
   // Initialize the aggregation system
   await initAggregator();
+  
+  // Recover any active visit from previous session
+  await recoverActiveSession();
   
   // Initialize the heartbeat system for engagement tracking
   await initHeartbeat();
@@ -66,9 +132,29 @@ async function initialize() {
   
   // Set up all tab event listeners
   setupTabListeners();
+
+  // Log completion
+  const endTime = Date.now();
+  console.log('═══════════════════════════════════════════════');
+  console.log('✅ SERVICE WORKER INITIALIZED');
+  console.log(`   Initialization took: ${endTime - startTime}ms`);
+  console.log('═══════════════════════════════════════════════');
 }
 
 // Export for browser environment
 self.InitModule = {
   initialize
 };
+
+// Add service worker lifecycle logging
+if (typeof self !== 'undefined') {
+  // Log when service worker is installed
+  self.addEventListener('install', (_event) => {
+    console.log('🔧 SERVICE WORKER INSTALLED');
+  });
+
+  // Log when service worker is activated
+  self.addEventListener('activate', (_event) => {
+    console.log('🟢 SERVICE WORKER ACTIVATED');
+  });
+}
