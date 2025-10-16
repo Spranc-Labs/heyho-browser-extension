@@ -8,9 +8,45 @@ class DebugPanel {
   constructor() {
     this.logContainer = document.getElementById('log-container');
     this.setupEventListeners();
-    this.loadAuthState();
-    this.loadStats();
-    this.loadSyncState();
+    this.initialize();
+  }
+
+  /**
+   * Initialize popup - wait for background script to be ready
+   */
+  async initialize() {
+    try {
+      // Wait for background script to be ready
+      await this.waitForBackgroundScript();
+
+      // Load initial data
+      await this.loadAuthState();
+      await this.loadStats();
+      await this.loadSyncState();
+    } catch (error) {
+      console.error('Failed to initialize popup:', error);
+      this.log('⚠️ Background script not ready. Please reload the extension.', 'error');
+    }
+  }
+
+  /**
+   * Wait for background script to be ready by attempting a simple ping
+   */
+  async waitForBackgroundScript(maxAttempts = 10, delay = 100) {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'getAuthState' });
+        if (response) {
+          return true; // Background script is ready
+        }
+      } catch (error) {
+        // Background not ready yet, wait and retry
+        if (i < maxAttempts - 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    throw new Error('Background script not responding');
   }
 
   /**
