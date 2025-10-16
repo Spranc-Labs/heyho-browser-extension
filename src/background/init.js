@@ -55,6 +55,52 @@ async function recoverActiveSession() {
 }
 
 /**
+ * Setup periodic token validation alarm
+ * Checks token expiry every 15 minutes and refreshes if needed
+ */
+async function setupTokenValidationAlarm() {
+  const { IS_DEV_MODE } = self.ConfigModule;
+
+  try {
+    // Create alarm that fires every 15 minutes
+    await chrome.alarms.create('token-validation', {
+      periodInMinutes: 15
+    });
+
+    // Set up listener for token validation alarm
+    chrome.alarms.onAlarm.addListener(async (alarm) => {
+      if (alarm.name === 'token-validation') {
+        if (IS_DEV_MODE) {
+          console.log('⏰ Token validation alarm triggered');
+        }
+
+        // Check if user is authenticated
+        if (self.AuthManager && self.AuthManager.isAuthenticated()) {
+          // Ensure we have a valid token (will refresh if expiring soon)
+          const validToken = await self.AuthManager.ensureValidToken();
+
+          if (validToken) {
+            if (IS_DEV_MODE) {
+              console.log('✅ Token validation successful');
+            }
+          } else {
+            if (IS_DEV_MODE) {
+              console.log('⚠️ Token validation failed - user logged out');
+            }
+          }
+        }
+      }
+    });
+
+    if (IS_DEV_MODE) {
+      console.log('✅ Token validation alarm configured (every 15 minutes)');
+    }
+  } catch (error) {
+    console.error('Failed to setup token validation alarm:', error);
+  }
+}
+
+/**
  * Run the complete initialization sequence
  */
 async function initialize() {
@@ -126,10 +172,13 @@ async function initialize() {
   
   // Set up recurring cleanup alarm
   await setupCleanupAlarm();
-  
+
   // Set up cleanup alarm listener
   setupCleanupAlarmListener();
-  
+
+  // Set up periodic token validation (every 15 minutes)
+  await setupTokenValidationAlarm();
+
   // Set up all tab event listeners
   setupTabListeners();
 
