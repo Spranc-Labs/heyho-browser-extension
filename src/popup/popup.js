@@ -526,7 +526,14 @@ class DebugPanel {
       if (response.success) {
         const synced = response.synced || 0;
         if (synced > 0) {
-          this.log(`✅ Sync completed: ${synced} items synced`, 'success');
+          // Show count of newly created items (not just updates)
+          const newItems = (response.data?.page_visits_new || 0) + (response.data?.tab_aggregates_new || 0);
+
+          if (newItems > 0) {
+            this.log(`✅ Sync completed: ${newItems} new items added to browsing history`, 'success');
+          } else {
+            this.log(`ℹ️ Sync completed: All items already in history (${synced} updated)`, 'info');
+          }
         } else {
           this.log('ℹ️ No new data to sync', 'info');
         }

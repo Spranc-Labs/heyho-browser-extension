@@ -14,8 +14,8 @@ const devLogBuffer = [];
 // API Configuration
 // TODO: Update these URLs to match your deployed backend
 const API_CONFIG = {
-  // Development API (local Rails server)
-  development: 'http://localhost:3000/api/v1',
+  // Development API (local Rails server - sync-be on port 3001)
+  development: 'http://localhost:3001/api/v1',
 
   // Staging API (update with your staging URL)
   staging: 'https://your-staging-api.com/api/v1',

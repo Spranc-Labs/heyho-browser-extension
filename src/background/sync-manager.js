@@ -73,6 +73,14 @@ const SyncManager = (function() {
         console.log('🔄 Starting data sync to backend...');
       }
 
+      // Trigger aggregation before sync to ensure all events are processed
+      if (self.AggregatorModule && self.AggregatorModule.processEvents) {
+        if (IS_DEV_MODE) {
+          console.log('⚙️ Running aggregation before sync...');
+        }
+        await self.AggregatorModule.processEvents();
+      }
+
       // Get anonymous client ID
       const anonymousClientId = self.AnonymousIdModule
         ? await self.AnonymousIdModule.getAnonymousId()
@@ -105,12 +113,16 @@ const SyncManager = (function() {
 
       if (response.success) {
         // Update sync state
-        syncState.lastSyncTime = Date.now();
         syncState.lastSyncStatus = 'success';
         syncState.syncedDataCounts = {
           pageVisits: pageVisits.length,
           tabAggregates: tabAggregates.length
         };
+
+        // Only update lastSyncTime if we actually synced data
+        if (pageVisits.length > 0 || tabAggregates.length > 0) {
+          syncState.lastSyncTime = Date.now();
+        }
 
         // Save sync state to storage
         await storage.set({
@@ -118,8 +130,8 @@ const SyncManager = (function() {
           lastSyncStatus: syncState.lastSyncStatus
         });
 
-        // Clear synced data from local storage (optional - comment out to keep local copy)
-        // await storage.set({ pageVisits: [], tabAggregates: [] });
+        // Clear synced data from local storage after successful sync
+        await storage.set({ pageVisits: [], tabAggregates: [] });
 
         if (IS_DEV_MODE) {
           console.log('✅ Data synced successfully:', response.data);
@@ -130,7 +142,7 @@ const SyncManager = (function() {
           success: true,
           message: 'Data synced successfully',
           synced: pageVisits.length + tabAggregates.length,
-          data: response.data
+          data: response.data // This now includes page_visits_new and tab_aggregates_new
         };
       } else {
         syncState.lastSyncStatus = 'failed';

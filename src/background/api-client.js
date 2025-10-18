@@ -131,6 +131,13 @@ const ApiClient = (function() {
 
       // Handle other HTTP errors
       if (!response.ok) {
+        // Log the error data for debugging
+        console.error('API Error Response:', {
+          status: response.status,
+          data: data,
+          message: data.message || data.error || `HTTP ${response.status}`
+        });
+
         throw new ApiError(
           data.message || data.error || `HTTP ${response.status}`,
           response.status,
