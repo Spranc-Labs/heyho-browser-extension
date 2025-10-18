@@ -14,6 +14,29 @@ function ensureHeartbeat() {
 }
 
 /**
+ * Setup message listener for content script messages
+ */
+function setupMessageListener() {
+  const { IS_DEV_MODE } = self.ConfigModule;
+
+  browser.runtime.onMessage.addListener((message, sender) => {
+    // Handle page metadata from content scripts
+    if (message.type === 'PAGE_METADATA_EXTRACTED') {
+      if (self.MetadataHandler) {
+        self.MetadataHandler.handlePageMetadata(message.data, sender.tab);
+      }
+    }
+
+    // Return false to indicate we won't send a response asynchronously
+    return false;
+  });
+
+  if (IS_DEV_MODE) {
+    console.log('[HeyHo] Message listener set up');
+  }
+}
+
+/**
  * Sets up all tab event listeners
  */
 function setupTabListeners() {
@@ -88,5 +111,6 @@ function setupTabListeners() {
 
 // Export for browser environment
 self.ListenersModule = {
-  setupTabListeners
+  setupTabListeners,
+  setupMessageListener
 };

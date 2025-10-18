@@ -152,8 +152,12 @@ class EventProcessor {
       this.batch.addPageVisit(completedVisit);
     }
     
-    // Create new active visit
-    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null);
+    // Get metadata for this tab
+    const metadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tabId) : {};
+    const title = self.MetadataHandler ? self.MetadataHandler.getTitle(tabId) : '';
+
+    // Create new active visit with metadata
+    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null, title, metadata);
     // Store the full visit object data, not the JSON representation
     this.batch.activeVisit = {
       id: newVisit.id,
@@ -167,7 +171,12 @@ class EventProcessor {
       activeDuration: newVisit.activeDuration,
       idlePeriods: newVisit.idlePeriods,
       engagementRate: newVisit.engagementRate,
-      lastHeartbeat: newVisit.lastHeartbeat
+      lastHeartbeat: newVisit.lastHeartbeat,
+      category: newVisit.category,
+      categoryConfidence: newVisit.categoryConfidence,
+      categoryMethod: newVisit.categoryMethod,
+      metadata: newVisit.metadata,
+      title: newVisit.title
     };
     
     // Update tab aggregate
@@ -279,8 +288,12 @@ class EventProcessor {
       this.batch.addPageVisit(completedVisit);
     }
     
-    // Create new active visit
-    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null);
+    // Get metadata for this tab
+    const metadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tabId) : {};
+    const title = self.MetadataHandler ? self.MetadataHandler.getTitle(tabId) : '';
+
+    // Create new active visit with metadata
+    const newVisit = self.PageVisit.createFromEvent(tabId, url, domain, timestamp, event.anonymousClientId || null, title, metadata);
     // Store the full visit object data, not the JSON representation
     this.batch.activeVisit = {
       id: newVisit.id,
@@ -294,7 +307,12 @@ class EventProcessor {
       activeDuration: newVisit.activeDuration,
       idlePeriods: newVisit.idlePeriods,
       engagementRate: newVisit.engagementRate,
-      lastHeartbeat: newVisit.lastHeartbeat
+      lastHeartbeat: newVisit.lastHeartbeat,
+      category: newVisit.category,
+      categoryConfidence: newVisit.categoryConfidence,
+      categoryMethod: newVisit.categoryMethod,
+      metadata: newVisit.metadata,
+      title: newVisit.title
     };
     
     // Update tab aggregate

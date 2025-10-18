@@ -12,6 +12,8 @@ if (typeof importScripts !== 'undefined') {
     'src/aggregation/processor.js',
     'src/background/storage.js',
     'src/background/config.js',
+    'src/background/categorizer.js',
+    'src/background/metadata-handler.js',
     'src/background/api-client.js',
     'src/background/auth-manager.js',
     'src/background/auth-handlers.js',

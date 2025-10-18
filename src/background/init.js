@@ -106,7 +106,7 @@ async function setupTokenValidationAlarm() {
 async function initialize() {
   const { IS_DEV_MODE } = self.ConfigModule;
   const { performCleanup, setupCleanupAlarm, setupCleanupAlarmListener } = self.CleanupModule;
-  const { setupTabListeners } = self.ListenersModule;
+  const { setupTabListeners, setupMessageListener } = self.ListenersModule;
   const { init: initAggregator } = self.aggregator;
   const { init: initHeartbeat } = self.HeartbeatModule;
   const { setupDebugMessageHandlers } = self.DebugModule;
@@ -114,6 +114,7 @@ async function initialize() {
   const { setupAuthMessageHandlers } = self.AuthHandlers;
   const { init: initSyncManager, setupSyncAlarm } = self.SyncManager;
   const { setupSyncMessageHandlers } = self.SyncHandlers;
+  const { init: initMetadataHandler } = self.MetadataHandler || {};
 
   // Log service worker lifecycle
   const startTime = Date.now();
@@ -168,18 +169,29 @@ async function initialize() {
   
   // Initialize the aggregation system
   await initAggregator();
-  
+
   // Recover any active visit from previous session
   await recoverActiveSession();
-  
+
+  // Initialize metadata handler
+  if (initMetadataHandler) {
+    initMetadataHandler();
+    if (IS_DEV_MODE) {
+      console.log('✅ Metadata handler initialized');
+    }
+  }
+
   // Initialize the heartbeat system for engagement tracking
   await initHeartbeat();
   if (IS_DEV_MODE) {
     console.log('❤️ Heartbeat system initialized for engagement tracking');
   }
-  
+
   // Setup debug message handlers
   setupDebugMessageHandlers();
+
+  // Setup message listener for content scripts
+  setupMessageListener();
   
   // Run initial cleanup on startup to handle any old data
   if (IS_DEV_MODE) {

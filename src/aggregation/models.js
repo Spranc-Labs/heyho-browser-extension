@@ -16,27 +16,46 @@ class PageVisit {
     this.duration = data.duration || 0;
     this.isActive = data.isActive || false;
     this.anonymousClientId = data.anonymousClientId;
-    
+
     // Engagement tracking fields
     this.activeDuration = data.activeDuration || 0;
     this.idlePeriods = data.idlePeriods || [];
     this.engagementRate = data.engagementRate || 0;
     this.lastHeartbeat = data.lastHeartbeat || null;
+
+    // Categorization fields
+    this.category = data.category || null;
+    this.categoryConfidence = data.categoryConfidence || 0;
+    this.categoryMethod = data.categoryMethod || null;
+    this.metadata = data.metadata || {};
+    this.title = data.title || '';
   }
 
-  static createFromEvent(tabId, url, domain, timestamp, anonymousClientId) {
-    return new PageVisit({
+  static createFromEvent(tabId, url, domain, timestamp, anonymousClientId, title = '', metadata = {}) {
+    const pageVisit = new PageVisit({
       id: `pv_${timestamp}_${tabId}`, // Match the format from your existing data
       tabId,
       url,
       domain,
       timestamp,
       anonymousClientId,
+      title,
+      metadata,
       isActive: true,
       activeDuration: 0,
       idlePeriods: [],
       engagementRate: 0
     });
+
+    // Categorize immediately if categorizer is available
+    if (self.PageCategorizer) {
+      const categorization = self.PageCategorizer.categorize(pageVisit);
+      pageVisit.category = categorization.category;
+      pageVisit.categoryConfidence = categorization.confidence;
+      pageVisit.categoryMethod = categorization.method;
+    }
+
+    return pageVisit;
   }
 
   complete(endTimestamp) {
@@ -122,19 +141,26 @@ class PageVisit {
       startedAt: this.timestamp,
       endedAt: this.isActive ? null : (this.timestamp + this.duration),
       durationSeconds: this.duration ? Math.round(this.duration / 1000) : null,
-      
+
       // New format fields (for future use)
       id: this.id,
       timestamp: this.timestamp,
       duration: this.duration,
       isActive: this.isActive,
-      
+
       // Engagement fields
       activeDuration: this.activeDuration,
       idlePeriods: this.idlePeriods,
       engagementRate: this.engagementRate,
       lastHeartbeat: this.lastHeartbeat,
-      
+
+      // Categorization fields
+      category: this.category,
+      categoryConfidence: this.categoryConfidence,
+      categoryMethod: this.categoryMethod,
+      metadata: this.metadata,
+      title: this.title,
+
       // Anonymous client ID for data association
       anonymousClientId: this.anonymousClientId
     };
