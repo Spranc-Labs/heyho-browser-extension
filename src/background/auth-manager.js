@@ -223,7 +223,20 @@ const AuthManager = (function() {
         return { success: true, user: authState.user };
       }
 
-      return { success: false, error: response.error || 'Login failed' };
+      // Extract more detailed error message from response
+      let errorMessage = response.error || 'Login failed';
+
+      // If there are field-specific errors in details, use those
+      if (response.details && response.details['field-error']) {
+        const [field, fieldError] = response.details['field-error'];
+        errorMessage = `${field}: ${fieldError}`;
+      }
+
+      if (IS_DEV_MODE) {
+        console.log('❌ Login failed:', errorMessage, response);
+      }
+
+      return { success: false, error: errorMessage };
 
     } catch (error) {
       console.error('Login error:', error);
