@@ -33,14 +33,22 @@ function getDomain(url) {
 
 /**
  * Creates a CoreEvent object with unique ID and current timestamp
- * @param {string} type - Event type (CREATE, ACTIVATE, NAVIGATE, CLOSE)
+ * @param {string} type - Event type (CREATE, ACTIVATE, NAVIGATE, CLOSE, HEARTBEAT)
  * @param {number} tabId - Tab ID from browser
- * @param {string} url - Tab URL (optional for CLOSE events)
- * @returns {Object} - CoreEvent object
+ * @param {string} url - Tab URL (optional for CLOSE and HEARTBEAT events)
+ * @param {Object} metadata - Additional event metadata (for HEARTBEAT events)
+ * @returns {Promise<Object>} - CoreEvent object with anonymous client ID
  */
-function createCoreEvent(type, tabId, url = '') {
+async function createCoreEvent(type, tabId, url = '', metadata = {}) {
   const timestamp = Date.now();
-  return {
+  
+  // Get anonymous client ID if module is available
+  let anonymousClientId = null;
+  if (self.AnonymousIdModule && self.AnonymousIdModule.getOrCreateAnonymousId) {
+    anonymousClientId = await self.AnonymousIdModule.getOrCreateAnonymousId();
+  }
+  
+  const event = {
     id: `evt_${timestamp}_${tabId}`,
     timestamp,
     type,
@@ -48,6 +56,18 @@ function createCoreEvent(type, tabId, url = '') {
     url,
     domain: getDomain(url)
   };
+  
+  // Add anonymous client ID if available
+  if (anonymousClientId) {
+    event.anonymousClientId = anonymousClientId;
+  }
+  
+  // Add metadata for special event types like HEARTBEAT
+  if (type === 'HEARTBEAT' && metadata) {
+    Object.assign(event, metadata);
+  }
+  
+  return event;
 }
 
 /**
@@ -56,6 +76,12 @@ function createCoreEvent(type, tabId, url = '') {
  * @param {Object} eventObject - CoreEvent to log and save
  */
 async function logAndSaveEvent(eventObject) {
+  // Apply triage filtering - exit early if event should not be stored
+  const { shouldStoreEvent } = self.TriageModule;
+  if (!shouldStoreEvent(eventObject)) {
+    return;
+  }
+
   const { IS_DEV_MODE, devLogBuffer } = self.ConfigModule;
   
   // Dev mode logging

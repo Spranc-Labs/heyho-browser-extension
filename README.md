@@ -1,112 +1,114 @@
-# HeyHo Browser Extension
+# Browser Extension Backend Service
 
-A browser extension to intelligently track browsing habits and generate insights to help users understand and manage their digital activity. This project is built to be compatible with both Chrome and Firefox.
+## 1. Overview
 
-## ✨ Features
+This backend service is the central data and authentication hub for the [Your Browser Extension Name]. Its primary responsibilities are:
 
-*   **Cross-Browser Compatibility:** Works on both Chrome (Manifest V3) and Firefox (Manifest V3).
-*   **Core Event Tracking:** Logs key browser events, including:
-    *   `CREATE`: When a new tab is created.
-    *   `ACTIVATE`: When a user switches to a tab.
-    *   `NAVIGATE`: When a tab's URL changes.
-    *   `CLOSE`: When a tab is closed.
-*   **Local Data Storage:** Events are stored locally and securely using IndexedDB.
-*   **Automatic Data Cleanup:** A daily process runs to remove event data older than 7 days to maintain performance and privacy.
-*   **Developer Mode:** Includes enhanced logging for easier development and debugging.
+1.  **Data Ingestion & Processing**: To collect, process, and securely store user browsing data sent from the browser extension.
+2.  **User Authentication**: To manage user identity, including logins via email/password and Single Sign-On (SSO).
+3.  **Data Federation**: To act as a central platform, exposing user data to other approved applications through a secure, permission-based API.
 
-## 🛠️ Developer Setup
+---
+
+## 2. Core Architectural Principles
+
+*   **Anonymous-First Data Collection**: The system is designed to provide value to users even before they create an account. All data collected from a non-authenticated user is associated with a persistent, anonymous client ID.
+*   **Centralized & Claimable Data**: When a user logs in, all their previously anonymous data is "claimed" and associated with their canonical user account, providing a seamless history.
+*   **Stateless Authentication (JWT)**: The service uses JSON Web Tokens (JWTs) for authenticating requests from the primary browser extension, ensuring secure and scalable communication.
+*   **Delegated Authorization (OAuth 2.0)**: To share data with third-party applications, the service acts as an OAuth 2.0 provider, allowing users to grant specific, revocable permissions to other apps.
+
+---
+
+## 3. Data Flow: The Anonymous-to-Verified Claiming Process
+
+This is the critical flow for ensuring no data is lost when a user decides to sign up.
+
+1.  **Anonymous ID Generation**: When a user first installs the extension, the extension generates a persistent, unique `anonymous_client_id` (UUID) and stores it in `browser.storage.local`.
+2.  **Data Tagging**: All browsing activity (page visits, aggregates, etc.) recorded by the extension is tagged with this `anonymous_client_id`.
+3.  **User Authentication**: The user logs in or signs up through the extension. The backend verifies their identity and returns a **JWT** containing their canonical `user_id`.
+4.  **Claim Request**: The extension makes a one-time API call to `POST /api/v1/users/claim-anonymous-data`, sending the `anonymous_client_id` in the request body and the user's JWT in the `Authorization` header.
+5.  **Backend Association**: The backend verifies the JWT, extracts the `user_id`, and runs an atomic database update to associate all records tagged with the `anonymous_client_id` to the user's `user_id`.
+
+---
+
+## 4. API Endpoints
+
+### Authentication Endpoints
+
+These endpoints are for managing user identity.
+
+#### `POST /api/v1/auth/login`
+*   **Description**: Authenticates a user with email and password.
+*   **Request Body**: `{ "email": "user@example.com", "password": "password123" }`
+*   **Success Response**: `{ "token": "<JWT>" }`
+
+#### `POST /api/v1/auth/sso/google` (Example)
+*   **Description**: Authenticates or signs up a user via Google SSO.
+*   **Request Body**: `{ "sso_token": "<Google_SSO_Token>" }`
+*   **Success Response**: `{ "token": "<JWT>" }`
+
+### Data Management Endpoints
+
+#### `POST /api/v1/users/claim-anonymous-data`
+*   **Description**: Associates all data from an anonymous ID with the authenticated user. This is the core of the "claiming" process.
+*   **Authentication**: **Required (JWT)**.
+*   **Request Body**: `{ "anonymous_client_id": "a1b2c3d4-e5f6-7890-1234-567890abcdef" }`
+*   **Success Response**: `200 OK` with `{ "status": "success", "claimed_records": 105 }`
+
+### Data Access Endpoints (for Extension & 3rd Party Apps)
+
+These endpoints provide access to the processed user data.
+
+#### `GET /api/v1/insights`
+*   **Description**: Retrieves personalized insights for the authenticated user.
+*   **Authentication**: **Required (User JWT or App OAuth 2.0 Access Token)**.
+*   **Success Response**: `{ "insights": [...] }`
+
+#### `GET /api/v1/activity/summary`
+*   **Description**: Retrieves a summary of the user's recent activity.
+*   **Authentication**: **Required (User JWT or App OAuth 2.0 Access Token)**.
+*   **Query Parameters**: `?period=weekly`
+*   **Success Response**: `{ "summary": { ... } }`
+
+---
+
+## 5. Setup and Local Development
 
 ### Prerequisites
-
-*   [Node.js](https://nodejs.org/) (v18 or higher recommended)
-*   [npm](https://www.npmjs.com/)
+*   Node.js (v18.x or later)
+*   PostgreSQL (or other specified database)
+*   npm or yarn
 
 ### Installation
-
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd browser-extension
-    ```
-
-2.  **Install dependencies:**
+1.  Clone the repository.
+2.  Install dependencies:
     ```bash
     npm install
     ```
-    This will install Jest for testing, ESLint for code quality, and Husky for pre-commit hooks.
 
-## 🚀 Loading the Extension
+### Configuration
+Create a `.env` file in the root of the project and add the following environment variables:
 
-To test the extension, you can load it as a temporary add-on in your browser of choice.
+```
+# Server Configuration
+PORT=3000
 
-### For Google Chrome
+# Database Connection
+DATABASE_URL="postgresql://user:password@localhost:5432/mydatabase"
 
-1.  Navigate to `chrome://extensions`.
-2.  Enable **Developer mode** using the toggle in the top-right corner.
-3.  Click the **Load unpacked** button.
-4.  Select the `browser-extension` project directory.
-    *   **Note:** For Chrome, you may need to temporarily rename `manifest-chrome.json` to `manifest.json`.
+# JWT Configuration
+JWT_SECRET="your-super-secret-and-long-jwt-secret"
+JWT_EXPIRES_IN="7d"
 
-### For Mozilla Firefox
+# OAuth 2.0 Configuration (for when you act as a provider)
+# Add client IDs and secrets for approved third-party apps here
+```
 
-1.  Navigate to `about:debugging`.
-2.  Click on the **This Firefox** tab on the left.
-3.  Click the **Load Temporary Add-on...** button.
-4.  Select the `manifest-firefox.json` file from the project directory.
+### Running the Server
+*   **Development**: `npm run dev`
+*   **Production**: `npm start`
 
-## 🧪 Testing & Development
-
-This project includes a comprehensive testing suite and development workflow:
-
-*   **50+ Unit Tests:** Covers storage, event logging, and cleanup functionality
-*   **ESLint Integration:** Code quality enforcement with pre-commit hooks
-*   **Cross-browser Testing:** Validated on both Chrome and Firefox environments
-
-Run tests and linting:
+### Running Tests
 ```bash
-npm test          # Run all tests
-npm run lint      # Check code quality
-npm run validate  # Run both tests and linting
+npm test
 ```
-
-## 📂 Project Structure
-
-```
-.
-├── background.js                 # Entry point - loads modules and starts extension
-├── manifest-chrome.json          # Manifest for Chrome (uses service worker)
-├── manifest-firefox.json         # Manifest for Firefox (uses script array)
-├── package.json                  # Dependencies, scripts, and testing setup
-├── specs/                        # Functional specifications and documentation
-│   ├── phase-1/                  # Implementation phase specifications
-│   ├── tests/                    # Comprehensive test suite (50+ tests)
-│   └── workflow/                 # Development workflow documentation
-└── src/
-    └── background/               # Modular background script components
-        ├── storage.js            # IndexedDB storage operations
-        ├── config.js             # Configuration flags and constants
-        ├── events.js             # Event creation and logging logic
-        ├── listeners.js          # Browser tab event listeners
-        ├── cleanup.js            # Data cleanup and alarm management
-        └── init.js               # Startup and initialization sequence
-```
-
-## 🏗️ Architecture
-
-The extension uses a **modular architecture** for maintainability:
-
-*   **Cross-browser compatibility:** Chrome uses `importScripts()`, Firefox uses manifest script array
-*   **Event-driven service worker:** Handles tab events and alarms efficiently  
-*   **Modular code organization:** Each module has a single responsibility
-*   **Comprehensive error handling:** Graceful degradation and detailed logging
-
-## 🗺️ Future Plans
-
-This project has a solid foundation. Next development goals include:
-
-*   **Data Analysis & Insights:** Develop modules to analyze collected event data and provide meaningful browsing pattern insights
-*   **Frontend/UI:** Create user-facing popup and options pages to display insights and configuration
-*   **Export Functionality:** Allow users to export their browsing data in various formats
-*   **Advanced Analytics:** Time-based analysis, domain grouping, and productivity metrics
-
----
