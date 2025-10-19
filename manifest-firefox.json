@@ -5,15 +5,45 @@
   "description": "A browser extension to intelligently track browsing habits and generate insights to help users understand and manage their digital activity.",
   "background": {
     "scripts": [
-      "browser-polyfill.js", 
-      "src/background/storage.js", 
+      "browser-polyfill.js",
+      "src/aggregation/utils.js",
+      "src/aggregation/models.js",
+      "src/aggregation/storage.js",
+      "src/aggregation/processor.js",
+      "src/background/storage.js",
       "src/background/config.js",
+      "src/background/categorizer.js",
+      "src/background/metadata-handler.js",
+      "src/background/api-client.js",
+      "src/background/auth-manager.js",
+      "src/background/auth-handlers.js",
+      "src/background/sync-manager.js",
+      "src/background/sync-handlers.js",
+      "src/background/triage.js",
       "src/background/events.js",
-      "src/background/listeners.js", 
+      "src/background/anonymousId.js",
+      "src/background/aggregator.js",
+      "src/background/heartbeat.js",
+      "src/background/debug.js",
+      "src/background/listeners.js",
       "src/background/cleanup.js",
       "src/background/init.js",
       "background.js"
     ]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/content/metadata-extractor.js",
+        "src/content/page-tracker.js"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "HeyHo Extension Debug Panel"
   },
   "permissions": [
     "tabs",
