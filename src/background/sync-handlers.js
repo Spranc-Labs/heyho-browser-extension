@@ -41,15 +41,15 @@ const SyncHandlers = (function () {
   /**
    * Handle sync action
    */
-  async function handleSyncAction(message, _sender) {
+  function handleSyncAction(message, _sender) {
     const { action, data } = message;
 
     switch (action) {
       case 'syncNow':
-        return await handleSyncNow(data);
+        return handleSyncNow(data);
 
       case 'getSyncState':
-        return await handleGetSyncState();
+        return handleGetSyncState();
 
       default:
         return {

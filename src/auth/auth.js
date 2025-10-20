@@ -3,6 +3,24 @@
  * Handles form submissions, validations, and UI interactions
  */
 
+// UI Timing Constants (in milliseconds)
+const UI_DELAYS = {
+  SUCCESS_REDIRECT: 1500, // Delay before redirect on success
+  ALERT_AUTO_HIDE: 5000, // Auto-hide alerts after 5s
+  VERIFICATION_CHECK: 2000, // Check verification status every 2s
+  ALERT_SLIDE_IN: 300, // Alert slide-in animation duration
+};
+
+// Validation Constants
+const VALIDATION = {
+  MIN_PASSWORD_LENGTH: 8,
+  MIN_NAME_LENGTH: 2,
+  VERIFICATION_CODE_LENGTH: 6,
+};
+
+// Font weight constant
+const FONT_WEIGHT_BOLD = 600;
+
 class AuthUI {
   constructor() {
     this.alertContainer = document.getElementById('alert-container');
@@ -92,7 +110,7 @@ class AuthUI {
           // Redirect to popup after short delay
           setTimeout(() => {
             window.close();
-          }, 1500);
+          }, UI_DELAYS.SUCCESS_REDIRECT);
         } else {
           this.showAlert(response.error || 'Login failed. Please try again.', 'error');
         }
@@ -182,7 +200,7 @@ class AuthUI {
           // Redirect to verify page
           setTimeout(() => {
             window.location.href = 'verify.html';
-          }, 1500);
+          }, UI_DELAYS.SUCCESS_REDIRECT);
         } else {
           this.showAlert(response.error || 'Signup failed. Please try again.', 'error');
         }
@@ -214,7 +232,7 @@ class AuthUI {
       this.showAlert('No pending verification found', 'error');
       setTimeout(() => {
         window.location.href = 'signup.html';
-      }, 2000);
+      }, UI_DELAYS.VERIFICATION_CHECK);
       return;
     }
 
@@ -229,8 +247,8 @@ class AuthUI {
 
       const code = codeInput.value.trim();
 
-      if (code.length !== 6) {
-        this.showAlert('Please enter a 6-digit code', 'error');
+      if (code.length !== VALIDATION.VERIFICATION_CODE_LENGTH) {
+        this.showAlert(`Please enter a ${VALIDATION.VERIFICATION_CODE_LENGTH}-digit code`, 'error');
         return;
       }
 
@@ -260,7 +278,7 @@ class AuthUI {
           // Redirect to login
           setTimeout(() => {
             window.location.href = 'login.html';
-          }, 1500);
+          }, UI_DELAYS.SUCCESS_REDIRECT);
         } else {
           this.showAlert(response.error || 'Invalid verification code', 'error');
         }
@@ -312,7 +330,7 @@ class AuthUI {
    */
   isPasswordStrong(password) {
     return (
-      password.length >= 8 &&
+      password.length >= VALIDATION.MIN_PASSWORD_LENGTH &&
       /[A-Z]/.test(password) &&
       /[a-z]/.test(password) &&
       /[0-9]/.test(password)
@@ -324,7 +342,7 @@ class AuthUI {
    */
   validatePasswordStrength(password) {
     const requirements = {
-      length: password.length >= 8,
+      length: password.length >= VALIDATION.MIN_PASSWORD_LENGTH,
       uppercase: /[A-Z]/.test(password),
       lowercase: /[a-z]/.test(password),
       number: /[0-9]/.test(password),
@@ -366,7 +384,7 @@ class AuthUI {
 
     // Create icon span
     const iconSpan = document.createElement('span');
-    iconSpan.style.fontWeight = '600';
+    iconSpan.style.fontWeight = String(FONT_WEIGHT_BOLD);
     iconSpan.textContent = icons[type] || 'ℹ';
 
     // Create message span
@@ -383,8 +401,8 @@ class AuthUI {
     if (type === 'success' || type === 'info') {
       setTimeout(() => {
         alert.style.opacity = '0';
-        setTimeout(() => alert.remove(), 300);
-      }, 5000);
+        setTimeout(() => alert.remove(), UI_DELAYS.ALERT_SLIDE_IN);
+      }, UI_DELAYS.ALERT_AUTO_HIDE);
     }
   }
 
