@@ -177,6 +177,7 @@ async function deleteEvents(eventIds) {
     // Process deletions in batches to avoid blocking
     for (let i = 0; i < eventIds.length; i += BATCH_SIZE) {
       const batch = eventIds.slice(i, i + BATCH_SIZE);
+      // eslint-disable-next-line no-await-in-loop -- Batches must be processed sequentially
       const batchDeletedCount = await deleteBatch(db, batch);
       deletedCount += batchDeletedCount;
     }

@@ -43,11 +43,11 @@ class AggregationStorage {
     return true;
   }
 
-  async addEvent(event) {
+  addEvent(event) {
     // Events should be added through the main StorageModule to IndexedDB
     // This is only used for testing or manual event addition
     if (self.StorageModule && self.StorageModule.addEvent) {
-      return await self.StorageModule.addEvent(event);
+      return self.StorageModule.addEvent(event);
     }
 
     // Fallback for testing - return false since we can't actually save
@@ -96,7 +96,7 @@ class AggregationStorage {
   async addPageVisit(visit) {
     const visits = await this.getPageVisits();
     visits.push(visit);
-    return await this.savePageVisits(visits);
+    return this.savePageVisits(visits);
   }
 
   // Tab Aggregate Management
@@ -145,7 +145,7 @@ class AggregationStorage {
       }
     }
 
-    return await this.saveTabAggregates(aggregates);
+    return this.saveTabAggregates(aggregates);
   }
 
   // Active Visit Management
@@ -170,8 +170,8 @@ class AggregationStorage {
     }
   }
 
-  async clearActiveVisit() {
-    return await this.setActiveVisit(null);
+  clearActiveVisit() {
+    return this.setActiveVisit(null);
   }
 
   // Batch Operations
