@@ -88,8 +88,30 @@ const SyncManager = (function () {
 
       // Get data to sync from storage
       const result = await storage.get(['pageVisits', 'tabAggregates']);
-      const pageVisits = result.pageVisits || [];
+      let pageVisits = result.pageVisits || [];
       const tabAggregates = result.tabAggregates || [];
+
+      // Filter out invalid URLs that should never be synced
+      const invalidUrlPrefixes = [
+        'moz-extension://',
+        'chrome-extension://',
+        'about:',
+        'chrome://',
+        'edge://',
+        'view-source:',
+      ];
+
+      const originalCount = pageVisits.length;
+      pageVisits = pageVisits.filter((visit) => {
+        const url = visit.url || visit.visitUrl || '';
+        return !invalidUrlPrefixes.some((prefix) => url.startsWith(prefix));
+      });
+
+      if (pageVisits.length < originalCount && IS_DEV_MODE) {
+        console.log(
+          `🧹 Filtered out ${originalCount - pageVisits.length} invalid URLs (extension pages, about: pages, etc.)`
+        );
+      }
 
       // Check if there's data to sync
       if (pageVisits.length === 0 && tabAggregates.length === 0) {
