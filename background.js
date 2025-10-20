@@ -2,6 +2,29 @@
 // This is the service worker entry point for the HeyHo Extension.
 // It uses the browser.* namespace for cross-browser compatibility via the polyfill.
 
+// Global error handlers for service worker
+self.addEventListener('error', (event) => {
+  console.error('[ServiceWorker] Uncaught error:', event.error);
+  // Log error details for debugging
+  if (event.error) {
+    console.error('  Message:', event.error.message);
+    console.error('  Stack:', event.error.stack);
+  }
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('[ServiceWorker] Unhandled promise rejection:', event.reason);
+  // Log reason details
+  if (event.reason) {
+    if (event.reason.message) {
+      console.error('  Message:', event.reason.message);
+    }
+    if (event.reason.stack) {
+      console.error('  Stack:', event.reason.stack);
+    }
+  }
+});
+
 // For Chrome (service worker): Import all modules using importScripts
 if (typeof importScripts !== 'undefined') {
   importScripts(

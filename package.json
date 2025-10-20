@@ -6,19 +6,26 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "lint": "eslint src/ specs/tests/ background.js",
-    "lint:fix": "eslint src/ specs/tests/ background.js --fix",
-    "validate": "npm run lint && npm run test",
+    "lint": "eslint src/ background.js",
+    "lint:fix": "eslint src/ background.js --fix",
+    "format": "prettier --write 'src/**/*.js' 'background.js'",
+    "format:check": "prettier --check 'src/**/*.js' 'background.js'",
+    "quality": "npm run lint && npm run format:check",
+    "quality:fix": "npm run lint:fix && npm run format",
+    "validate": "npm run quality && npm run test",
     "pre-commit": "npm run validate",
     "prepare": "husky install"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-no-unsanitized": "^4.0.2",
     "husky": "^8.0.3",
     "jest": "^27.5.1",
     "jest-chrome": "^0.8.0",
     "jest-environment-jsdom": "^27.5.1",
-    "lint-staged": "^13.2.3"
+    "lint-staged": "^13.2.3",
+    "prettier": "^3.0.3"
   },
   "jest": {
     "testEnvironment": "jsdom",
@@ -34,7 +41,7 @@
   "lint-staged": {
     "*.js": [
       "eslint --fix",
-      "git add"
+      "prettier --write"
     ]
   },
   "husky": {
