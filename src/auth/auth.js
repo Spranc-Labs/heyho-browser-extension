@@ -15,9 +15,15 @@ class AuthUI {
    */
   detectPage() {
     const path = window.location.pathname;
-    if (path.includes('login.html')) {return 'login';}
-    if (path.includes('signup.html')) {return 'signup';}
-    if (path.includes('verify.html')) {return 'verify';}
+    if (path.includes('login.html')) {
+      return 'login';
+    }
+    if (path.includes('signup.html')) {
+      return 'signup';
+    }
+    if (path.includes('verify.html')) {
+      return 'verify';
+    }
     return 'unknown';
   }
 
@@ -26,15 +32,15 @@ class AuthUI {
    */
   initializePage() {
     switch (this.currentPage) {
-    case 'login':
-      this.initLoginPage();
-      break;
-    case 'signup':
-      this.initSignupPage();
-      break;
-    case 'verify':
-      this.initVerifyPage();
-      break;
+      case 'login':
+        this.initLoginPage();
+        break;
+      case 'signup':
+        this.initSignupPage();
+        break;
+      case 'verify':
+        this.initVerifyPage();
+        break;
     }
   }
 
@@ -70,7 +76,7 @@ class AuthUI {
         // Send message to background script to handle login
         const response = await chrome.runtime.sendMessage({
           action: 'login',
-          data: { email, password }
+          data: { email, password },
         });
 
         console.log('Login response:', response);
@@ -163,8 +169,8 @@ class AuthUI {
             email,
             password,
             first_name: firstName,
-            last_name: lastName
-          }
+            last_name: lastName,
+          },
         });
 
         if (response.success) {
@@ -233,14 +239,16 @@ class AuthUI {
 
       try {
         // Get the pending email from storage
-        const { pendingVerificationEmail } = await chrome.storage.local.get('pendingVerificationEmail');
+        const { pendingVerificationEmail } = await chrome.storage.local.get(
+          'pendingVerificationEmail'
+        );
 
         const response = await chrome.runtime.sendMessage({
           action: 'verifyEmail',
           data: {
             email: pendingVerificationEmail,
-            code
-          }
+            code,
+          },
         });
 
         if (response.success) {
@@ -273,7 +281,7 @@ class AuthUI {
       try {
         const response = await chrome.runtime.sendMessage({
           action: 'resendVerification',
-          data: { email: pendingVerificationEmail }
+          data: { email: pendingVerificationEmail },
         });
 
         if (response.success) {
@@ -319,7 +327,7 @@ class AuthUI {
       length: password.length >= 8,
       uppercase: /[A-Z]/.test(password),
       lowercase: /[a-z]/.test(password),
-      number: /[0-9]/.test(password)
+      number: /[0-9]/.test(password),
     };
 
     // Update UI for each requirement
@@ -334,7 +342,7 @@ class AuthUI {
       }
     });
 
-    return Object.values(requirements).every(valid => valid);
+    return Object.values(requirements).every((valid) => valid);
   }
 
   /**
@@ -353,13 +361,21 @@ class AuthUI {
       success: '✓',
       error: '✕',
       warning: '⚠',
-      info: 'ℹ'
+      info: 'ℹ',
     };
 
-    alert.innerHTML = `
-      <span style="font-weight: 600;">${icons[type] || 'ℹ'}</span>
-      <span>${message}</span>
-    `;
+    // Create icon span
+    const iconSpan = document.createElement('span');
+    iconSpan.style.fontWeight = '600';
+    iconSpan.textContent = icons[type] || 'ℹ';
+
+    // Create message span
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+
+    // Append to alert
+    alert.appendChild(iconSpan);
+    alert.appendChild(messageSpan);
 
     this.alertContainer.appendChild(alert);
 

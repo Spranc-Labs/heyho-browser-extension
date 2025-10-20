@@ -1,6 +1,6 @@
 /**
  * Anonymous Client ID Management
- * 
+ *
  * Handles generation, storage, and retrieval of persistent anonymous client IDs
  * for data collection before user authentication.
  */
@@ -16,11 +16,11 @@ function generateAnonymousId() {
   if (crypto && crypto.randomUUID) {
     return crypto.randomUUID();
   }
-  
+
   // Fallback UUID v4 generation
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
@@ -31,18 +31,18 @@ function generateAnonymousId() {
  */
 async function getOrCreateAnonymousId() {
   try {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get([ANONYMOUS_ID_KEY]);
-    
+
     if (result[ANONYMOUS_ID_KEY]) {
       console.log('Retrieved existing anonymous ID:', result[ANONYMOUS_ID_KEY]);
       return result[ANONYMOUS_ID_KEY];
     }
-    
+
     const newId = generateAnonymousId();
     await storage.set({ [ANONYMOUS_ID_KEY]: newId });
     console.log('Created new anonymous ID:', newId);
-    
+
     return newId;
   } catch (error) {
     console.error('Error managing anonymous ID:', error);
@@ -56,7 +56,7 @@ async function getOrCreateAnonymousId() {
  */
 async function getAnonymousId() {
   try {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get([ANONYMOUS_ID_KEY]);
     return result[ANONYMOUS_ID_KEY] || null;
   } catch (error) {
@@ -71,7 +71,7 @@ async function getAnonymousId() {
  */
 async function clearAnonymousId() {
   try {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     await storage.remove([ANONYMOUS_ID_KEY]);
     console.log('Anonymous ID cleared after account linking');
   } catch (error) {
@@ -86,7 +86,7 @@ async function clearAnonymousId() {
  */
 async function isMigrationCompleted() {
   try {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get([MIGRATION_STATUS_KEY]);
     return result[MIGRATION_STATUS_KEY] === true;
   } catch (error) {
@@ -101,7 +101,7 @@ async function isMigrationCompleted() {
  */
 async function markMigrationCompleted() {
   try {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     await storage.set({ [MIGRATION_STATUS_KEY]: true });
     console.log('Migration marked as completed');
   } catch (error) {
@@ -119,17 +119,17 @@ async function migrateExistingData() {
     console.log('Migration already completed, skipping');
     return;
   }
-  
+
   console.log('Starting migration of existing data...');
   const anonymousId = await getOrCreateAnonymousId();
-  
+
   try {
     // Migrate IndexedDB events
     await migrateIndexedDBData(anonymousId);
-    
+
     // Migrate Chrome Storage data
     await migrateChromeStorageData(anonymousId);
-    
+
     await markMigrationCompleted();
     console.log('Migration completed successfully');
   } catch (error) {
@@ -146,32 +146,32 @@ async function migrateExistingData() {
 async function migrateIndexedDBData(anonymousId) {
   // Use storage functions from global module
   const { getAllEvents, executeTransaction, EVENTS_STORE } = self.StorageModule;
-  
+
   try {
     const events = await getAllEvents();
     console.log(`Migrating ${events.length} events in IndexedDB`);
-    
+
     const operations = [];
     let updateCount = 0;
-    
+
     for (const event of events) {
       if (!event.anonymousClientId) {
         // Create updated event with anonymous client ID
         const updatedEvent = {
           ...event,
-          anonymousClientId: anonymousId
+          anonymousClientId: anonymousId,
         };
-        
+
         // Add put operation to update the event
         operations.push({
           type: 'put',
           storeName: EVENTS_STORE,
-          data: updatedEvent
+          data: updatedEvent,
         });
         updateCount++;
       }
     }
-    
+
     if (operations.length > 0) {
       await executeTransaction(operations);
       console.log(`IndexedDB migration completed: updated ${updateCount} events`);
@@ -191,17 +191,17 @@ async function migrateIndexedDBData(anonymousId) {
  */
 async function migrateChromeStorageData(anonymousId) {
   try {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const keys = ['pageVisits', 'tabAggregates', 'pendingEvents', 'activeVisit'];
     const data = await storage.get(keys);
-    
+
     let updateNeeded = false;
     const updates = {};
-    
+
     // Migrate page visits
     if (data.pageVisits && Array.isArray(data.pageVisits)) {
       let visitsUpdated = false;
-      const migratedVisits = data.pageVisits.map(visit => {
+      const migratedVisits = data.pageVisits.map((visit) => {
         if (!visit.anonymousClientId) {
           visitsUpdated = true;
           return { ...visit, anonymousClientId: anonymousId };
@@ -214,11 +214,11 @@ async function migrateChromeStorageData(anonymousId) {
         console.log(`Migrated ${migratedVisits.length} page visits`);
       }
     }
-    
+
     // Migrate tab aggregates (stored as an array, not object)
     if (data.tabAggregates && Array.isArray(data.tabAggregates)) {
       let aggregatesUpdated = false;
-      const migratedAggregates = data.tabAggregates.map(aggregate => {
+      const migratedAggregates = data.tabAggregates.map((aggregate) => {
         if (!aggregate.anonymousClientId) {
           aggregatesUpdated = true;
           return { ...aggregate, anonymousClientId: anonymousId };
@@ -231,18 +231,18 @@ async function migrateChromeStorageData(anonymousId) {
         console.log(`Migrated ${migratedAggregates.length} tab aggregates`);
       }
     }
-    
+
     // Migrate active visit if exists
     if (data.activeVisit && !data.activeVisit.anonymousClientId) {
       updates.activeVisit = { ...data.activeVisit, anonymousClientId: anonymousId };
       updateNeeded = true;
       console.log('Migrated active visit');
     }
-    
+
     // Migrate pending events
     if (data.pendingEvents && Array.isArray(data.pendingEvents)) {
       let eventsUpdated = false;
-      const migratedEvents = data.pendingEvents.map(event => {
+      const migratedEvents = data.pendingEvents.map((event) => {
         if (!event.anonymousClientId) {
           eventsUpdated = true;
           return { ...event, anonymousClientId: anonymousId };
@@ -255,7 +255,7 @@ async function migrateChromeStorageData(anonymousId) {
         console.log(`Migrated ${migratedEvents.length} pending events`);
       }
     }
-    
+
     if (updateNeeded) {
       await storage.set(updates);
       console.log('Chrome Storage migration completed successfully');
@@ -274,7 +274,7 @@ self.AnonymousIdModule = {
   getAnonymousId,
   clearAnonymousId,
   migrateExistingData,
-  isMigrationCompleted
+  isMigrationCompleted,
 };
 
 // Log successful module loading

@@ -43,7 +43,7 @@ function extractPageMetadata() {
       // Content metrics
       wordCount: estimateWordCount(),
       imageCount: document.querySelectorAll('img').length,
-      videoCount: document.querySelectorAll('video').length
+      videoCount: document.querySelectorAll('video').length,
     };
   } catch (error) {
     console.warn('[HeyHo] Metadata extraction failed:', error);
@@ -116,10 +116,11 @@ function extractSchemaData() {
 
         if (data['@graph'] && Array.isArray(data['@graph'])) {
           // Find VideoObject, Article, or first object
-          const videoOrArticle = data['@graph'].find(item =>
-            item['@type'] === 'VideoObject' ||
-            item['@type'] === 'Article' ||
-            item['@type'] === 'NewsArticle'
+          const videoOrArticle = data['@graph'].find(
+            (item) =>
+              item['@type'] === 'VideoObject' ||
+              item['@type'] === 'Article' ||
+              item['@type'] === 'NewsArticle'
           );
 
           return videoOrArticle || data['@graph'][0];
@@ -205,11 +206,15 @@ function estimateWordCount() {
  * @returns {number} Duration in seconds
  */
 function parseDuration(duration) {
-  if (!duration) {return 0;}
+  if (!duration) {
+    return 0;
+  }
 
   try {
     const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-    if (!match) {return 0;}
+    if (!match) {
+      return 0;
+    }
 
     const hours = parseInt(match[1] || 0);
     const minutes = parseInt(match[2] || 0);
@@ -226,5 +231,5 @@ self.MetadataExtractor = {
   extractPageMetadata,
   extractSchemaType,
   extractSchemaData,
-  parseDuration
+  parseDuration,
 };

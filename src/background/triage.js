@@ -1,6 +1,6 @@
 /**
  * Triage Module for HeyHo Extension
- * 
+ *
  * Pre-storage filter to ensure only valuable and meaningful events are saved.
  * Reduces noise, improves performance, and enforces cost-control mindset.
  */
@@ -14,21 +14,21 @@ function shouldStoreEvent(eventObject) {
   // Rule 1: Filter Uninteresting Domains
   const blockedDomains = [
     'newtab',
-    'about:newtab', 
+    'about:newtab',
     'about:blank',
     'chrome-extension',
-    'moz-extension'
+    'moz-extension',
   ];
-  
+
   const domain = eventObject.domain;
-  
+
   // Check if domain matches any blocked patterns
   for (const blockedDomain of blockedDomains) {
     if (domain && domain.includes(blockedDomain)) {
       return false;
     }
   }
-  
+
   // Rule 2: Filter Events Without a URL/Domain
   // Exception: CLOSE and HEARTBEAT events are always considered valuable
   if (eventObject.type !== 'CLOSE' && eventObject.type !== 'HEARTBEAT') {
@@ -36,7 +36,7 @@ function shouldStoreEvent(eventObject) {
       return false;
     }
   }
-  
+
   // If no rules matched, the event is valuable and should be stored
   return true;
 }
@@ -44,13 +44,13 @@ function shouldStoreEvent(eventObject) {
 // Export for browser environment
 if (typeof self !== 'undefined') {
   self.TriageModule = {
-    shouldStoreEvent
+    shouldStoreEvent,
   };
 }
 
 // Export for Node.js (testing)
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
-    shouldStoreEvent
+    shouldStoreEvent,
   };
 }

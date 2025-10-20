@@ -31,7 +31,15 @@ class PageVisit {
     this.title = data.title || '';
   }
 
-  static createFromEvent(tabId, url, domain, timestamp, anonymousClientId, title = '', metadata = {}) {
+  static createFromEvent(
+    tabId,
+    url,
+    domain,
+    timestamp,
+    anonymousClientId,
+    title = '',
+    metadata = {}
+  ) {
     const pageVisit = new PageVisit({
       id: `pv_${timestamp}_${tabId}`, // Match the format from your existing data
       tabId,
@@ -44,7 +52,7 @@ class PageVisit {
       isActive: true,
       activeDuration: 0,
       idlePeriods: [],
-      engagementRate: 0
+      engagementRate: 0,
     });
 
     // Categorize immediately if categorizer is available
@@ -61,7 +69,7 @@ class PageVisit {
   complete(endTimestamp) {
     this.duration = endTimestamp - this.timestamp;
     this.isActive = false;
-    
+
     // Close any open idle period when visit completes
     const lastIdlePeriod = this.idlePeriods[this.idlePeriods.length - 1];
     if (lastIdlePeriod && !lastIdlePeriod.end) {
@@ -69,7 +77,7 @@ class PageVisit {
       lastIdlePeriod.durationMs = endTimestamp - lastIdlePeriod.start;
       lastIdlePeriod.resumeReason = 'visit_ended';
     }
-    
+
     this.calculateEngagementRate();
     return this;
   }
@@ -81,15 +89,15 @@ class PageVisit {
     if (!heartbeat || !heartbeat.engagement) {
       return;
     }
-    
+
     this.lastHeartbeat = heartbeat.timestamp;
-    
+
     // If engaged, add to active duration
     if (heartbeat.engagement.isEngaged) {
       // Add time since last heartbeat (or use 30 seconds as default)
       const timeSinceLastHeartbeat = 30000; // 30 seconds default
       this.activeDuration += timeSinceLastHeartbeat;
-      
+
       // End any open idle period when user becomes active again
       const lastIdlePeriod = this.idlePeriods[this.idlePeriods.length - 1];
       if (lastIdlePeriod && !lastIdlePeriod.end) {
@@ -107,11 +115,11 @@ class PageVisit {
           reason: heartbeat.engagement.reason,
           end: null,
           durationMs: null,
-          resumeReason: null
+          resumeReason: null,
         });
       }
     }
-    
+
     // Update engagement rate
     this.calculateEngagementRate();
   }
@@ -139,7 +147,7 @@ class PageVisit {
       url: this.url,
       domain: this.domain,
       startedAt: this.timestamp,
-      endedAt: this.isActive ? null : (this.timestamp + this.duration),
+      endedAt: this.isActive ? null : this.timestamp + this.duration,
       durationSeconds: this.duration ? Math.round(this.duration / 1000) : null,
 
       // New format fields (for future use)
@@ -162,7 +170,7 @@ class PageVisit {
       title: this.title,
 
       // Anonymous client ID for data association
-      anonymousClientId: this.anonymousClientId
+      anonymousClientId: this.anonymousClientId,
     };
   }
 }
@@ -188,7 +196,7 @@ class TabAggregate {
       tabId,
       startTime: timestamp,
       anonymousClientId,
-      lastActiveTime: timestamp
+      lastActiveTime: timestamp,
     });
   }
 
@@ -205,14 +213,14 @@ class TabAggregate {
   getMostVisitedDomain() {
     let maxDuration = 0;
     let mostVisited = null;
-    
+
     for (const [domain, duration] of Object.entries(this.domainDurations)) {
       if (duration > maxDuration) {
         maxDuration = duration;
         mostVisited = domain;
       }
     }
-    
+
     return mostVisited;
   }
 
@@ -232,10 +240,10 @@ class TabAggregate {
       currentDomain: this.currentDomain,
       statistics: {
         mostVisitedDomain: this.getMostVisitedDomain(),
-        averagePageDuration: this.getAveragePageDuration()
+        averagePageDuration: this.getAveragePageDuration(),
       },
       // Anonymous client ID for data association
-      anonymousClientId: this.anonymousClientId
+      anonymousClientId: this.anonymousClientId,
     };
   }
 }
@@ -248,14 +256,14 @@ class AggregationBatch {
     this.events = events || [];
     this.activeVisit = activeVisit;
     this.tabAggregates = new Map();
-    
+
     // Initialize tab aggregates map
     if (tabAggregates) {
       for (const aggregate of tabAggregates) {
         this.tabAggregates.set(aggregate.tabId, new TabAggregate(aggregate));
       }
     }
-    
+
     this.processedEvents = new Set();
     this.pageVisits = [];
     this.errors = [];
@@ -287,7 +295,7 @@ class AggregationBatch {
       pageVisits: this.pageVisits.length,
       tabAggregates: this.tabAggregates.size,
       errors: this.errors.length,
-      hasActiveVisit: !!this.activeVisit
+      hasActiveVisit: !!this.activeVisit,
     };
   }
 }
