@@ -83,10 +83,8 @@ async function setupTokenValidationAlarm() {
             if (IS_DEV_MODE) {
               console.log('✅ Token validation successful');
             }
-          } else {
-            if (IS_DEV_MODE) {
-              console.log('⚠️ Token validation failed - user logged out');
-            }
+          } else if (IS_DEV_MODE) {
+            console.log('⚠️ Token validation failed - user logged out');
           }
         }
       }

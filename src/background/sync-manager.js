@@ -210,10 +210,8 @@ const SyncManager = (function () {
           // Only sync if authenticated
           if (self.AuthManager && self.AuthManager.isAuthenticated()) {
             await syncToBackend();
-          } else {
-            if (IS_DEV_MODE) {
-              console.log('⏭️ Skipping scheduled sync - not authenticated');
-            }
+          } else if (IS_DEV_MODE) {
+            console.log('⏭️ Skipping scheduled sync - not authenticated');
           }
         }
       });

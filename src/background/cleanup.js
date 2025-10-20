@@ -97,10 +97,8 @@ function setupCleanupAlarmListener() {
 
     if (alarm.name === 'daily-cleanup') {
       await performCleanup();
-    } else {
-      if (IS_DEV_MODE) {
-        console.log('Unknown alarm fired:', alarm);
-      }
+    } else if (IS_DEV_MODE) {
+      console.log('Unknown alarm fired:', alarm);
     }
   });
 }

@@ -339,9 +339,9 @@ async function clearHeartbeats() {
 /**
  * Manual heartbeat trigger for testing
  */
-async function triggerHeartbeat() {
+function triggerHeartbeat() {
   console.log('Manual heartbeat triggered');
-  return await generateHeartbeat();
+  return generateHeartbeat();
 }
 
 /**

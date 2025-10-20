@@ -18,10 +18,14 @@ function generateAnonymousId() {
   }
 
   // Fallback UUID v4 generation
+  const HEX_BASE = 16;
+  const UUID_VERSION_MASK = 0x3;
+  const UUID_VARIANT_MASK = 0x8;
+
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
+    const r = (Math.random() * HEX_BASE) | 0;
+    const v = c === 'x' ? r : (r & UUID_VERSION_MASK) | UUID_VARIANT_MASK;
+    return v.toString(HEX_BASE);
   });
 }
 
