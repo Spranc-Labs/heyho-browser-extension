@@ -13,8 +13,9 @@
     "quality": "npm run lint && npm run format:check",
     "quality:fix": "npm run lint:fix && npm run format",
     "validate": "npm run quality && npm run test",
-    "pre-commit": "npm run validate",
-    "prepare": "husky install"
+    "pre-commit": "lint-staged && npm test",
+    "prepare": "husky install",
+    "postinstall": "husky install"
   },
   "devDependencies": {
     "eslint": "^8.57.0",
