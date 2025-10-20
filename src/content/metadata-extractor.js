@@ -44,6 +44,9 @@ function extractPageMetadata() {
       wordCount: estimateWordCount(),
       imageCount: document.querySelectorAll('img').length,
       videoCount: document.querySelectorAll('video').length,
+
+      // Preview metadata for link resurfacing
+      preview: extractPreviewMetadata(),
     };
   } catch (error) {
     console.warn('[HeyHo] Metadata extraction failed:', error);
@@ -60,30 +63,9 @@ function extractSchemaType() {
     const scripts = document.querySelectorAll('script[type="application/ld+json"]');
 
     for (const script of scripts) {
-      try {
-        const data = JSON.parse(script.textContent);
-
-        // Handle single object
-        if (data['@type']) {
-          return data['@type'];
-        }
-
-        // Handle array of objects (take first)
-        if (Array.isArray(data) && data[0] && data[0]['@type']) {
-          return data[0]['@type'];
-        }
-
-        // Handle nested @graph structure
-        if (data['@graph'] && Array.isArray(data['@graph'])) {
-          for (const item of data['@graph']) {
-            if (item['@type']) {
-              return item['@type'];
-            }
-          }
-        }
-      } catch (e) {
-        // Invalid JSON, skip
-        continue;
+      const schemaType = extractTypeFromScript(script);
+      if (schemaType) {
+        return schemaType;
       }
     }
 
@@ -91,6 +73,51 @@ function extractSchemaType() {
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * Extract @type from a single JSON-LD script element
+ * @param {HTMLScriptElement} script - Script element to parse
+ * @returns {string|null} Schema type or null
+ */
+function extractTypeFromScript(script) {
+  try {
+    const data = JSON.parse(script.textContent);
+
+    // Handle single object
+    if (data['@type']) {
+      return data['@type'];
+    }
+
+    // Handle array of objects (take first)
+    if (Array.isArray(data) && data[0]?.['@type']) {
+      return data[0]['@type'];
+    }
+
+    // Handle nested @graph structure
+    if (data['@graph'] && Array.isArray(data['@graph'])) {
+      return extractTypeFromGraph(data['@graph']);
+    }
+
+    return null;
+  } catch (e) {
+    // Invalid JSON, skip
+    return null;
+  }
+}
+
+/**
+ * Extract @type from @graph array
+ * @param {Array} graph - Schema.org @graph array
+ * @returns {string|null} Schema type or null
+ */
+function extractTypeFromGraph(graph) {
+  for (const item of graph) {
+    if (item['@type']) {
+      return item['@type'];
+    }
+  }
+  return null;
 }
 
 /**
@@ -196,6 +223,173 @@ function estimateWordCount() {
     return text.trim().split(/\s+/).length;
   } catch (error) {
     return 0;
+  }
+}
+
+/**
+ * Extract preview metadata for link resurfacing
+ * @returns {Object} Preview metadata with title, description, images
+ */
+function extractPreviewMetadata() {
+  try {
+    return {
+      title: extractPreviewTitle(),
+      description: extractPreviewDescription(),
+      image: extractPreviewImage(),
+      siteName: extractPreviewSiteName(),
+      favicon: extractFavicon(),
+      author: extractPreviewAuthor(),
+      publishedDate: getMeta('property', 'article:published_time') || null,
+      canonicalUrl: document.querySelector('link[rel="canonical"]')?.href || null,
+    };
+  } catch (error) {
+    return {};
+  }
+}
+
+/**
+ * Extract preview title with fallbacks
+ * @returns {string} Preview title
+ */
+function extractPreviewTitle() {
+  return getMeta('property', 'og:title') || document.title || '';
+}
+
+/**
+ * Extract preview description with fallbacks
+ * @returns {string} Preview description
+ */
+function extractPreviewDescription() {
+  return (
+    getMeta('property', 'og:description') ||
+    getMeta('name', 'twitter:description') ||
+    getMeta('name', 'description') ||
+    extractFirstParagraph()
+  );
+}
+
+/**
+ * Extract preview image with fallbacks
+ * @returns {string|null} Preview image URL
+ */
+function extractPreviewImage() {
+  return (
+    getMeta('property', 'og:image') ||
+    getMeta('name', 'twitter:image') ||
+    extractSchemaImage() ||
+    null
+  );
+}
+
+/**
+ * Extract site name with fallbacks
+ * @returns {string} Site name
+ */
+function extractPreviewSiteName() {
+  return getMeta('property', 'og:site_name') || extractSiteNameFromDomain() || '';
+}
+
+/**
+ * Extract author with fallbacks
+ * @returns {string|null} Author name
+ */
+function extractPreviewAuthor() {
+  return getMeta('name', 'author') || getMeta('property', 'article:author') || null;
+}
+
+/**
+ * Extract image from Schema.org data
+ * @returns {string|null} Image URL
+ */
+function extractSchemaImage() {
+  try {
+    const schemaData = extractSchemaData();
+    if (!schemaData || !schemaData.image) {
+      return null;
+    }
+
+    const { image } = schemaData;
+
+    // Image can be a string URL
+    if (typeof image === 'string') {
+      return image;
+    }
+
+    // Image can be an object with url property
+    if (image.url) {
+      return image.url;
+    }
+
+    // Image can be an array (take first)
+    if (Array.isArray(image) && image.length > 0) {
+      return typeof image[0] === 'string' ? image[0] : image[0]?.url || null;
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Extract first paragraph as fallback description
+ * @returns {string} First paragraph text (max 200 chars)
+ */
+function extractFirstParagraph() {
+  try {
+    // Look for main content first
+    const paragraph =
+      document.querySelector('article p') ||
+      document.querySelector('main p') ||
+      document.querySelector('[role="main"] p') ||
+      document.querySelector('p');
+
+    if (!paragraph) {
+      return '';
+    }
+
+    const text = paragraph.textContent?.trim() || '';
+    const MAX_DESCRIPTION_LENGTH = 200;
+    return text.length > MAX_DESCRIPTION_LENGTH
+      ? `${text.slice(0, MAX_DESCRIPTION_LENGTH)}...`
+      : text;
+  } catch (error) {
+    return '';
+  }
+}
+
+/**
+ * Extract site name from domain
+ * @returns {string} Site name derived from hostname
+ */
+function extractSiteNameFromDomain() {
+  try {
+    const hostname = window.location.hostname;
+    // Remove www. and get first part of domain
+    const siteName = hostname.replace('www.', '').split('.')[0];
+    // Capitalize first letter
+    return siteName.charAt(0).toUpperCase() + siteName.slice(1);
+  } catch (error) {
+    return '';
+  }
+}
+
+/**
+ * Extract favicon URL
+ * @returns {string|null} Favicon URL
+ */
+function extractFavicon() {
+  try {
+    // Try various favicon declarations in priority order
+    const favicon =
+      document.querySelector('link[rel="icon"]')?.href ||
+      document.querySelector('link[rel="shortcut icon"]')?.href ||
+      document.querySelector('link[rel="apple-touch-icon"]')?.href ||
+      `${window.location.origin}/favicon.ico`;
+
+    return favicon;
+  } catch (error) {
+    return null;
   }
 }
 
