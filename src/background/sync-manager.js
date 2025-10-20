@@ -7,11 +7,9 @@
 const SyncManager = (function () {
   'use strict';
 
-  // VERSION MARKER - If you see this in console, new code is loaded!
-  console.warn('🔄 SyncManager VERSION 2.0 - WITH FILTER LOGGING loaded!');
-
   const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
   const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
+  const { INVALID_URL_PREFIXES } = self.Constants || { INVALID_URL_PREFIXES: [] };
 
   // Sync state
   const syncState = {
@@ -24,8 +22,12 @@ const SyncManager = (function () {
     },
   };
 
+  // Store alarm listener reference to prevent memory leaks
+  let syncAlarmListener = null;
+
   /**
    * Initialize sync manager
+   * @returns {Promise<void>}
    */
   async function init() {
     if (IS_DEV_MODE) {
@@ -48,9 +50,111 @@ const SyncManager = (function () {
   }
 
   /**
+   * Filter out invalid URLs from page visits
+   * @param {Array} pageVisits - Array of page visit objects
+   * @returns {{validVisits: Array, filteredUrls: Array}}
+   * @private
+   */
+  function filterInvalidUrls(pageVisits) {
+    return pageVisits.reduce(
+      (acc, visit) => {
+        const url = visit.url || visit.visitUrl || '';
+        const isInvalid = INVALID_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
+
+        if (isInvalid) {
+          acc.filteredUrls.push(url);
+        } else {
+          acc.validVisits.push(visit);
+        }
+
+        return acc;
+      },
+      { validVisits: [], filteredUrls: [] }
+    );
+  }
+
+  /**
+   * Handle successful sync
+   * @param {Array} pageVisits - Synced page visits
+   * @param {Array} tabAggregates - Synced tab aggregates
+   * @param {Object} responseData - Backend response data
+   * @returns {Promise<Object>} Success response object
+   * @private
+   */
+  async function handleSyncSuccess(pageVisits, tabAggregates, responseData) {
+    syncState.lastSyncStatus = 'success';
+    syncState.syncedDataCounts = {
+      pageVisits: pageVisits.length,
+      tabAggregates: tabAggregates.length,
+    };
+
+    if (pageVisits.length > 0 || tabAggregates.length > 0) {
+      syncState.lastSyncTime = Date.now();
+    }
+
+    await storage.set({
+      lastSyncTime: syncState.lastSyncTime,
+      lastSyncStatus: syncState.lastSyncStatus,
+      pageVisits: [],
+      tabAggregates: [],
+    });
+
+    if (IS_DEV_MODE) {
+      console.log('✅ Data synced successfully:', responseData);
+    }
+
+    return {
+      success: true,
+      message: 'Data synced successfully',
+      synced: pageVisits.length + tabAggregates.length,
+      data: responseData,
+    };
+  }
+
+  /**
+   * Handle sync failure
+   * @param {Array} pageVisits - Failed page visits
+   * @param {string} errorMessage - Error message
+   * @returns {Promise<Object>} Failure response object
+   * @private
+   */
+  async function handleSyncFailure(pageVisits, errorMessage) {
+    syncState.lastSyncStatus = 'failed';
+
+    try {
+      await storage.set({ lastSyncStatus: 'failed' });
+    } catch (storageError) {
+      console.error('Failed to save sync failure status:', storageError);
+    }
+
+    console.error('❌ Sync failed:', errorMessage);
+
+    // Log sample of data that was rejected
+    if (pageVisits.length > 0) {
+      console.error('Sample of rejected page visits:');
+      pageVisits.slice(0, 3).forEach((visit, idx) => {
+        console.error(`  Visit ${idx + 1}:`, {
+          url: visit.url || visit.visitUrl,
+          domain: visit.domain,
+          category: visit.category,
+          visitedAt: visit.visitedAt || visit.visited_at,
+        });
+      });
+      if (pageVisits.length > 3) {
+        console.error(`  ... and ${pageVisits.length - 3} more visits`);
+      }
+    }
+
+    return {
+      success: false,
+      error: errorMessage || 'Sync failed',
+    };
+  }
+
+  /**
    * Sync browsing data to backend
    * @param {boolean} force - Force sync even if not authenticated
-   * @returns {Promise<object>} Sync result
+   * @returns {Promise<{success: boolean, message?: string, synced?: number, data?: object, error?: string}>}
    */
   async function syncToBackend(force = false) {
     // Check if user is authenticated
@@ -91,59 +195,33 @@ const SyncManager = (function () {
 
       // Get data to sync from storage
       const result = await storage.get(['pageVisits', 'tabAggregates']);
-      let pageVisits = result.pageVisits || [];
       const tabAggregates = result.tabAggregates || [];
 
-      // Filter out invalid URLs that should never be synced
-      const invalidUrlPrefixes = [
-        'moz-extension://',
-        'chrome-extension://',
-        'about:',
-        'chrome://',
-        'edge://',
-        'view-source:',
-      ];
+      // Filter out invalid URLs
+      const { validVisits, filteredUrls } = filterInvalidUrls(result.pageVisits || []);
 
-      const originalCount = pageVisits.length;
-      const filteredOutUrls = [];
-
-      pageVisits = pageVisits.filter((visit) => {
-        const url = visit.url || visit.visitUrl || '';
-        const isInvalid = invalidUrlPrefixes.some((prefix) => url.startsWith(prefix));
-
-        if (isInvalid) {
-          filteredOutUrls.push(url);
-        }
-
-        return !isInvalid;
-      });
-
-      // Log filtered URLs (always, not just in dev mode - this is critical for debugging)
-      if (filteredOutUrls.length > 0) {
-        console.warn(`🧹 Filtered out ${filteredOutUrls.length} invalid URLs before sync:`);
-        // Show first 5 URLs to avoid spam
-        filteredOutUrls.slice(0, 5).forEach((url) => {
+      // Log filtered URLs if any
+      if (filteredUrls.length > 0) {
+        console.warn(`🧹 Filtered out ${filteredUrls.length} invalid URLs before sync:`);
+        filteredUrls.slice(0, 5).forEach((url) => {
           console.warn(`   ❌ ${url}`);
         });
-        if (filteredOutUrls.length > 5) {
-          console.warn(`   ... and ${filteredOutUrls.length - 5} more`);
+        if (filteredUrls.length > 5) {
+          console.warn(`   ... and ${filteredUrls.length - 5} more`);
         }
-      } else if (IS_DEV_MODE && originalCount > 0) {
-        console.log('✅ All URLs are valid (no filtering needed)');
       }
 
       // Check if there's data to sync
-      if (pageVisits.length === 0 && tabAggregates.length === 0) {
+      if (validVisits.length === 0 && tabAggregates.length === 0) {
         if (IS_DEV_MODE) {
           console.log('ℹ️ No data to sync');
         }
-        syncState.isSyncing = false;
         return { success: true, message: 'No data to sync', synced: 0 };
       }
 
       if (IS_DEV_MODE) {
         console.log(
-          `📊 Syncing ${pageVisits.length} page visits and ${tabAggregates.length} tab aggregates`
+          `📊 Syncing ${validVisits.length} page visits and ${tabAggregates.length} tab aggregates`
         );
       }
 
@@ -152,73 +230,16 @@ const SyncManager = (function () {
         '/data/sync',
         {
           anonymousClientId,
-          pageVisits,
+          pageVisits: validVisits,
           tabAggregates,
         },
         { authenticated: true }
       );
 
       if (response.success) {
-        // Update sync state
-        syncState.lastSyncStatus = 'success';
-        syncState.syncedDataCounts = {
-          pageVisits: pageVisits.length,
-          tabAggregates: tabAggregates.length,
-        };
-
-        // Only update lastSyncTime if we actually synced data
-        if (pageVisits.length > 0 || tabAggregates.length > 0) {
-          syncState.lastSyncTime = Date.now();
-        }
-
-        // Save sync state to storage
-        await storage.set({
-          lastSyncTime: syncState.lastSyncTime,
-          lastSyncStatus: syncState.lastSyncStatus,
-        });
-
-        // Clear synced data from local storage after successful sync
-        await storage.set({ pageVisits: [], tabAggregates: [] });
-
-        if (IS_DEV_MODE) {
-          console.log('✅ Data synced successfully:', response.data);
-        }
-
-        syncState.isSyncing = false;
-        return {
-          success: true,
-          message: 'Data synced successfully',
-          synced: pageVisits.length + tabAggregates.length,
-          data: response.data, // This now includes page_visits_new and tab_aggregates_new
-        };
+        return await handleSyncSuccess(validVisits, tabAggregates, response.data);
       } else {
-        syncState.lastSyncStatus = 'failed';
-        await storage.set({ lastSyncStatus: 'failed' });
-
-        // Always log sync failures (not just in dev mode - critical for debugging)
-        console.error('❌ Sync failed:', response.error);
-
-        // Log sample of data that was rejected
-        if (pageVisits.length > 0) {
-          console.error('Sample of rejected page visits:');
-          pageVisits.slice(0, 3).forEach((visit, idx) => {
-            console.error(`  Visit ${idx + 1}:`, {
-              url: visit.url || visit.visitUrl,
-              domain: visit.domain,
-              category: visit.category,
-              visitedAt: visit.visitedAt || visit.visited_at,
-            });
-          });
-          if (pageVisits.length > 3) {
-            console.error(`  ... and ${pageVisits.length - 3} more visits`);
-          }
-        }
-
-        syncState.isSyncing = false;
-        return {
-          success: false,
-          error: response.error || 'Sync failed',
-        };
+        return await handleSyncFailure(validVisits, response.error);
       }
     } catch (error) {
       console.error('❌ Sync exception:', error);
@@ -229,18 +250,26 @@ const SyncManager = (function () {
       });
 
       syncState.lastSyncStatus = 'error';
-      syncState.isSyncing = false;
-      await storage.set({ lastSyncStatus: 'error' });
+
+      try {
+        await storage.set({ lastSyncStatus: 'error' });
+      } catch (storageError) {
+        console.error('Failed to save error status:', storageError);
+      }
 
       return {
         success: false,
         error: error.message || 'Sync failed',
       };
+    } finally {
+      // Always reset syncing flag
+      syncState.isSyncing = false;
     }
   }
 
   /**
    * Get current sync state
+   * @returns {{isSyncing: boolean, lastSyncTime: number|null, lastSyncStatus: string|null, syncedDataCounts: object}}
    */
   function getSyncState() {
     return {
@@ -254,16 +283,22 @@ const SyncManager = (function () {
   /**
    * Setup periodic sync alarm
    * Syncs data every 5 minutes if authenticated
+   * @returns {Promise<void>}
    */
   async function setupSyncAlarm() {
     try {
+      // Remove existing listener if any to prevent memory leaks
+      if (syncAlarmListener) {
+        chrome.alarms.onAlarm.removeListener(syncAlarmListener);
+      }
+
       // Create alarm that fires every 5 minutes
       await chrome.alarms.create('data-sync', {
         periodInMinutes: 5,
       });
 
-      // Set up listener for sync alarm
-      chrome.alarms.onAlarm.addListener(async (alarm) => {
+      // Create and store listener reference
+      syncAlarmListener = async (alarm) => {
         if (alarm.name === 'data-sync') {
           if (IS_DEV_MODE) {
             console.log('⏰ Sync alarm triggered');
@@ -276,7 +311,10 @@ const SyncManager = (function () {
             console.log('⏭️ Skipping scheduled sync - not authenticated');
           }
         }
-      });
+      };
+
+      // Set up listener for sync alarm
+      chrome.alarms.onAlarm.addListener(syncAlarmListener);
 
       if (IS_DEV_MODE) {
         console.log('✅ Data sync alarm configured (every 5 minutes)');

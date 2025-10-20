@@ -3,36 +3,36 @@
  *
  * Pre-storage filter to ensure only valuable and meaningful events are saved.
  * Reduces noise, improves performance, and enforces cost-control mindset.
+ *
+ * Uses shared INVALID_URL_PREFIXES from constants.js for consistent filtering
+ * across modules (sync-manager.js also uses the same list).
  */
 
 /**
  * Determines whether an event should be stored based on triage rules
  * @param {Object} eventObject - CoreEvent object from events.js
+ * @param {string} eventObject.url - Event URL
+ * @param {string} eventObject.domain - Extracted domain
+ * @param {string} eventObject.type - Event type (CREATE, ACTIVATE, etc.)
  * @returns {boolean} - true if event should be stored, false if it should be discarded
  */
 function shouldStoreEvent(eventObject) {
-  // Rule 1: Filter Uninteresting URLs
-  const blockedUrlPatterns = [
-    'about:newtab',
-    'about:blank',
-    'chrome-extension://',
-    'moz-extension://',
-    'chrome://',
-    'edge://',
-    'view-source:',
-  ];
+  // Get shared invalid URL prefixes from constants module
+  const { INVALID_URL_PREFIXES } = self.Constants || { INVALID_URL_PREFIXES: [] };
 
   const url = eventObject.url || '';
   const domain = eventObject.domain || '';
 
-  // Check if URL matches any blocked patterns
-  for (const pattern of blockedUrlPatterns) {
-    if (url.startsWith(pattern)) {
+  // Rule 1: Filter invalid URLs (extension pages, internal browser pages)
+  // Check if URL matches any invalid patterns
+  for (const prefix of INVALID_URL_PREFIXES) {
+    if (url.startsWith(prefix)) {
       return false;
     }
   }
 
-  // Check if domain is 'newtab' (special case)
+  // Rule 1a: Special case for 'newtab' domain
+  // Some newtab pages may not have standard URL patterns
   if (domain && domain.includes('newtab')) {
     return false;
   }
