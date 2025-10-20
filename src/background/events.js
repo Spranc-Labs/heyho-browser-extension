@@ -98,6 +98,7 @@ async function logAndSaveEvent(eventObject) {
     // Add to dev buffer and log table for first 10 events
     devLogBuffer.push(eventObject);
     if (devLogBuffer.length <= 10) {
+      // eslint-disable-next-line no-console
       console.table(devLogBuffer);
     }
   }

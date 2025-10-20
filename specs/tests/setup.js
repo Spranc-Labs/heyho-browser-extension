@@ -6,6 +6,14 @@
 // Import jest-chrome for browser API mocks
 const chrome = require('jest-chrome');
 
+// Import fake-indexeddb for proper IndexedDB mocking
+// Use structuredClone polyfill to handle objects that can't be cloned
+const FDBFactory = require('fake-indexeddb/lib/FDBFactory');
+const FDBKeyRange = require('fake-indexeddb/lib/FDBKeyRange');
+
+global.indexedDB = new FDBFactory();
+global.IDBKeyRange = FDBKeyRange;
+
 // Set up global browser API mocks
 global.chrome = chrome;
 global.browser = chrome;
@@ -17,8 +25,8 @@ global.importScripts = jest.fn();
 global.self = global;
 
 /**
- * IndexedDB Mock Implementation
- * Provides a simplified mock of IndexedDB API for testing
+ * IndexedDB Mock Implementation (kept for backwards compatibility)
+ * Note: fake-indexeddb provides the actual implementation
  */
 class MockIDBRequest {
   constructor() {
@@ -56,7 +64,7 @@ class MockIDBTransaction {
     this.onabort = null;
     this._stores = new Map();
     this._completed = false;
-    
+
     // Auto-complete transaction after a short delay (simulate real behavior)
     setTimeout(() => {
       if (!this._completed && this.oncomplete) {
@@ -97,12 +105,12 @@ class MockIDBIndex {
 
   openCursor(range) {
     const request = new MockIDBRequest();
-    
+
     setTimeout(() => {
       try {
         const allEntries = Array.from(this._objectStore._data.entries());
         let filteredEntries = allEntries;
-        
+
         // Apply range filter if provided
         if (range && range.upper !== undefined) {
           filteredEntries = allEntries.filter(([_key, value]) => {
@@ -110,9 +118,9 @@ class MockIDBIndex {
             return indexValue <= range.upper;
           });
         }
-        
+
         let currentIndex = 0;
-        
+
         const cursor = {
           get primaryKey() {
             return currentIndex < filteredEntries.length ? filteredEntries[currentIndex][0] : null;
@@ -129,9 +137,9 @@ class MockIDBIndex {
                 request._succeed(null);
               }
             }, 0);
-          }
+          },
         };
-        
+
         if (filteredEntries.length > 0) {
           request._succeed(cursor);
         } else {
@@ -141,7 +149,7 @@ class MockIDBIndex {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
   }
 }
@@ -156,7 +164,7 @@ class MockIDBObjectStore {
 
   add(value) {
     const request = new MockIDBRequest();
-    
+
     // Simulate async operation
     setTimeout(() => {
       try {
@@ -175,13 +183,13 @@ class MockIDBObjectStore {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
   }
 
   put(value) {
     const request = new MockIDBRequest();
-    
+
     // Simulate async operation
     setTimeout(() => {
       try {
@@ -196,13 +204,13 @@ class MockIDBObjectStore {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
   }
 
   get(key) {
     const request = new MockIDBRequest();
-    
+
     setTimeout(() => {
       try {
         const value = this._data.get(key);
@@ -211,13 +219,13 @@ class MockIDBObjectStore {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
   }
 
   getAll() {
     const request = new MockIDBRequest();
-    
+
     setTimeout(() => {
       try {
         const values = Array.from(this._data.values());
@@ -226,13 +234,13 @@ class MockIDBObjectStore {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
   }
 
   count() {
     const request = new MockIDBRequest();
-    
+
     setTimeout(() => {
       try {
         const count = this._data.size;
@@ -241,13 +249,13 @@ class MockIDBObjectStore {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
   }
 
   delete(key) {
     const request = new MockIDBRequest();
-    
+
     setTimeout(() => {
       try {
         const existed = this._data.has(key);
@@ -257,7 +265,7 @@ class MockIDBObjectStore {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
   }
 
@@ -298,7 +306,7 @@ class MockIDBDatabase {
     const storeNamesArray = Array.isArray(storeNames) ? storeNames : [storeNames];
     const transaction = new MockIDBTransaction(storeNamesArray, mode);
     // Link the transaction to existing stores
-    storeNamesArray.forEach(storeName => {
+    storeNamesArray.forEach((storeName) => {
       if (this._stores.has(storeName)) {
         transaction._stores.set(storeName, this._stores.get(storeName));
       }
@@ -319,55 +327,57 @@ class MockIDBOpenDBRequest extends MockIDBRequest {
 
   _triggerUpgrade(db, oldVersion = 0, newVersion = 1) {
     if (this.onupgradeneeded) {
-      this.onupgradeneeded({ 
-        target: { result: db }, 
+      this.onupgradeneeded({
+        target: { result: db },
         currentTarget: { result: db },
         oldVersion,
-        newVersion
+        newVersion,
       });
     }
   }
 }
 
-// Mock IndexedDB implementation
-const mockIndexedDB = {
+// Mock IndexedDB implementation (kept for backwards compatibility, not used with fake-indexeddb)
+// eslint-disable-next-line no-unused-vars
+const _mockIndexedDB = {
   _databases: new Map(), // Track database versions
-  
+
   open(name, version) {
     const request = new MockIDBOpenDBRequest();
-    
+
     // Simulate async database opening
     setTimeout(() => {
       try {
         const currentVersion = this._databases.get(name) || 0;
         const db = new MockIDBDatabase(name, version || 1);
-        
+
         // Trigger upgrade if version is higher than current
         if ((version || 1) > currentVersion) {
           request._triggerUpgrade(db, currentVersion, version || 1);
         }
-        
+
         // Update stored version
         this._databases.set(name, version || 1);
-        
+
         request._succeed(db);
       } catch (error) {
         request._fail(error);
       }
     }, 0);
-    
+
     return request;
-  }
+  },
 };
 
-// Mock IDBKeyRange
-const mockIDBKeyRange = {
+// Mock IDBKeyRange (kept for backwards compatibility, not used with fake-indexeddb)
+// eslint-disable-next-line no-unused-vars
+const _mockIDBKeyRange = {
   upperBound(upper, open = false) {
     return {
       upper,
       upperOpen: open,
       lower: undefined,
-      lowerOpen: false
+      lowerOpen: false,
     };
   },
   lowerBound(lower, open = false) {
@@ -375,7 +385,7 @@ const mockIDBKeyRange = {
       upper: undefined,
       upperOpen: false,
       lower,
-      lowerOpen: open
+      lowerOpen: open,
     };
   },
   bound(lower, upper, lowerOpen = false, upperOpen = false) {
@@ -383,7 +393,7 @@ const mockIDBKeyRange = {
       upper,
       upperOpen,
       lower,
-      lowerOpen
+      lowerOpen,
     };
   },
   only(value) {
@@ -391,14 +401,14 @@ const mockIDBKeyRange = {
       upper: value,
       upperOpen: false,
       lower: value,
-      lowerOpen: false
+      lowerOpen: false,
     };
-  }
+  },
 };
 
-// Set up global IndexedDB mock
-global.indexedDB = mockIndexedDB;
-global.IDBKeyRange = mockIDBKeyRange;
+// fake-indexeddb/auto already sets up global.indexedDB
+// We keep the custom mock classes above for backwards compatibility with any tests that reference them
+// But we don't assign them to global since fake-indexeddb provides a complete implementation
 
 // Clean up mocks between tests
 afterEach(() => {
@@ -406,7 +416,7 @@ afterEach(() => {
   if (chrome.flush) {
     chrome.flush();
   }
-  
+
   // Reset IndexedDB state between tests
-  mockIndexedDB._databases.clear();
+  // fake-indexeddb automatically handles cleanup
 });
