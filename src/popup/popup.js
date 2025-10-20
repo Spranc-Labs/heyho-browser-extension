@@ -35,6 +35,7 @@ class DebugPanel {
   async waitForBackgroundScript(maxAttempts = 10, delay = 100) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
+        // eslint-disable-next-line no-await-in-loop -- Retry mechanism requires sequential attempts
         const response = await chrome.runtime.sendMessage({ action: 'getAuthState' });
         if (response) {
           return true; // Background script is ready
@@ -42,6 +43,7 @@ class DebugPanel {
       } catch (error) {
         // Background not ready yet, wait and retry
         if (i < maxAttempts - 1) {
+          // eslint-disable-next-line no-await-in-loop -- Delay between retry attempts
           await new Promise((resolve) => {
             setTimeout(resolve, delay);
           });

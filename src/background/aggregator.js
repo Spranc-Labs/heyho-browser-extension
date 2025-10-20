@@ -130,42 +130,42 @@ async function addEvent(event) {
 /**
  * Get aggregation statistics
  */
-async function getStatistics() {
+function getStatistics() {
   if (!storage) {
     return { error: 'Not initialized' };
   }
 
-  return await storage.getStatistics();
+  return storage.getStatistics();
 }
 
 /**
  * Export all data
  */
-async function exportData() {
+function exportData() {
   if (!storage) {
     return { error: 'Not initialized' };
   }
 
-  return await storage.exportData();
+  return storage.exportData();
 }
 
 /**
  * Clear all data
  */
-async function clearAllData() {
+function clearAllData() {
   if (!storage) {
     return false;
   }
 
-  return await storage.clearAll();
+  return storage.clearAll();
 }
 
 /**
  * Manual trigger for aggregation (for testing)
  */
-async function triggerAggregation() {
+function triggerAggregation() {
   console.log('Manual aggregation triggered');
-  return await processEvents();
+  return processEvents();
 }
 
 // Export the aggregation API

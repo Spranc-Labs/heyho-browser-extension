@@ -40,6 +40,7 @@ class EventProcessor {
       for (const event of events) {
         try {
           console.log(`🔄 Processing event ${event.id} of type ${event.type}...`);
+          // eslint-disable-next-line no-await-in-loop -- Sequential processing required
           const result = await this._processEvent(event);
           console.log(`✅ Event ${event.id} processed:`, result);
           this.batch.markEventProcessed(event.id);
@@ -483,22 +484,22 @@ class EventProcessor {
   /**
    * Get current processing statistics
    */
-  async getStatistics() {
-    return await this.storage.getStatistics();
+  getStatistics() {
+    return this.storage.getStatistics();
   }
 
   /**
    * Export all data
    */
-  async exportData() {
-    return await this.storage.exportData();
+  exportData() {
+    return this.storage.exportData();
   }
 
   /**
    * Clear all data
    */
-  async clearAll() {
-    return await this.storage.clearAll();
+  clearAll() {
+    return this.storage.clearAll();
   }
 }
 
