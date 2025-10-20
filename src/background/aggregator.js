@@ -1,6 +1,6 @@
 /**
  * Aggregation Module for Browser Extension
- * 
+ *
  * Handles event aggregation with clean separation of concerns
  */
 
@@ -8,7 +8,7 @@
 const AGGREGATION_CONFIG = {
   alarmName: 'aggregate',
   intervalMinutes: 5,
-  batchSize: 10
+  batchSize: 10,
 };
 
 // Module instances
@@ -23,11 +23,11 @@ async function initAggregator() {
     // Initialize modules
     storage = new self.AggregationStorage();
     processor = new self.EventProcessor(storage);
-    
+
     // Set up periodic processing
     await setupPeriodicProcessing();
     setupAlarmListener();
-    
+
     console.log('Aggregation system initialized');
   } catch (error) {
     console.error('Failed to initialize aggregator:', error);
@@ -39,13 +39,13 @@ async function initAggregator() {
  */
 async function setupPeriodicProcessing() {
   const existingAlarm = await chrome.alarms.get(AGGREGATION_CONFIG.alarmName);
-  
+
   if (!existingAlarm) {
     chrome.alarms.create(AGGREGATION_CONFIG.alarmName, {
       delayInMinutes: AGGREGATION_CONFIG.intervalMinutes,
-      periodInMinutes: AGGREGATION_CONFIG.intervalMinutes
+      periodInMinutes: AGGREGATION_CONFIG.intervalMinutes,
     });
-    
+
     console.log(`Aggregation alarm created: every ${AGGREGATION_CONFIG.intervalMinutes} minutes`);
   }
 }
@@ -69,20 +69,19 @@ async function processEvents() {
     console.error('Processor not initialized');
     return { success: false, error: 'Not initialized' };
   }
-  
+
   try {
     const result = await processor.processAllEvents();
-    
+
     // Store aggregation timestamp for debug panel
     if (result.success) {
-      const storage = (typeof browser !== 'undefined' ? 
-        browser.storage.local : chrome.storage.local);
+      const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
       await storage.set({
-        lastAggregationTime: Date.now()
+        lastAggregationTime: Date.now(),
       });
       console.log('Aggregation completed and timestamp stored');
     }
-    
+
     return result;
   } catch (error) {
     console.error('Error in processEvents:', error);
@@ -98,7 +97,7 @@ async function addEvent(event) {
     console.error('Storage not initialized');
     return { success: false, error: 'Not initialized' };
   }
-  
+
   try {
     // Add event ID and timestamp if missing
     if (!event.id) {
@@ -107,20 +106,20 @@ async function addEvent(event) {
     if (!event.timestamp) {
       event.timestamp = Date.now();
     }
-    
+
     // Store event
     await storage.addEvent(event);
-    
+
     // Check if we should process batch
     const events = await storage.getEvents();
     if (events.length >= AGGREGATION_CONFIG.batchSize) {
       return await processEvents();
     }
-    
-    return { 
-      success: true, 
-      queued: true, 
-      queueSize: events.length 
+
+    return {
+      success: true,
+      queued: true,
+      queueSize: events.length,
     };
   } catch (error) {
     console.error('Failed to add event:', error);
@@ -131,42 +130,42 @@ async function addEvent(event) {
 /**
  * Get aggregation statistics
  */
-async function getStatistics() {
+function getStatistics() {
   if (!storage) {
     return { error: 'Not initialized' };
   }
-  
-  return await storage.getStatistics();
+
+  return storage.getStatistics();
 }
 
 /**
  * Export all data
  */
-async function exportData() {
+function exportData() {
   if (!storage) {
     return { error: 'Not initialized' };
   }
-  
-  return await storage.exportData();
+
+  return storage.exportData();
 }
 
 /**
  * Clear all data
  */
-async function clearAllData() {
+function clearAllData() {
   if (!storage) {
     return false;
   }
-  
-  return await storage.clearAll();
+
+  return storage.clearAll();
 }
 
 /**
  * Manual trigger for aggregation (for testing)
  */
-async function triggerAggregation() {
+function triggerAggregation() {
   console.log('Manual aggregation triggered');
-  return await processEvents();
+  return processEvents();
 }
 
 // Export the aggregation API
@@ -177,7 +176,7 @@ self.aggregator = {
   getStatistics,
   exportData,
   clearAllData,
-  triggerAggregation
+  triggerAggregation,
 };
 
 // Auto-initialize if this is the main aggregator module

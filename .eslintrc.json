@@ -1,0 +1,94 @@
+{
+  "env": {
+    "browser": true,
+    "webextensions": true,
+    "es2022": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "prettier"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "script"
+  },
+  "globals": {
+    "browser": "readonly",
+    "chrome": "readonly",
+    "self": "writable",
+    "importScripts": "readonly",
+    "indexedDB": "readonly",
+    "IDBKeyRange": "readonly"
+  },
+  "plugins": [
+    "no-unsanitized"
+  ],
+  "rules": {
+    "indent": 0,
+    "no-unused-vars": ["error", {
+      "vars": "all",
+      "args": "after-used",
+      "ignoreRestSiblings": true,
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_"
+    }],
+    "no-undef": "error",
+    "no-console": ["warn", {
+      "allow": ["warn", "error", "log"]
+    }],
+    "require-await": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-var": "warn",
+    "prefer-const": "warn",
+    "prefer-arrow-callback": ["warn", {
+      "allowNamedFunctions": true
+    }],
+    "no-param-reassign": ["warn", {
+      "props": false
+    }],
+    "consistent-return": "warn",
+    "no-throw-literal": "error",
+    "prefer-promise-reject-errors": "error",
+    "no-return-await": "warn",
+    "no-async-promise-executor": "error",
+    "no-await-in-loop": "warn",
+    "no-promise-executor-return": "error",
+    "max-depth": ["warn", 4],
+    "max-nested-callbacks": ["warn", 3],
+    "complexity": ["warn", 15],
+    "max-lines-per-function": ["warn", {
+      "max": 100,
+      "skipBlankLines": true,
+      "skipComments": true
+    }],
+    "no-magic-numbers": "off",
+    "eqeqeq": ["error", "always"],
+    "no-alert": "error",
+    "no-debugger": "error",
+    "no-empty-function": ["warn", {
+      "allow": ["arrowFunctions"]
+    }],
+    "no-lonely-if": "warn",
+    "no-unneeded-ternary": "warn",
+    "no-useless-return": "warn",
+    "prefer-template": "warn",
+    "yoda": "warn",
+    "no-unsanitized/method": "error",
+    "no-unsanitized/property": "error"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.test.js", "**/tests/**/*.js", "**/specs/**/*.js"],
+      "env": {
+        "jest": true
+      },
+      "rules": {
+        "no-console": "off",
+        "max-lines-per-function": "off",
+        "no-magic-numbers": "off"
+      }
+    }
+  ]
+}

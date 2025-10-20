@@ -36,16 +36,18 @@ const UrlUtils = {
     if (!url || !this.isValidUrl(url)) {
       return false;
     }
-    
+
     // Skip chrome:// and extension:// URLs
-    if (url.startsWith('chrome://') || 
-        url.startsWith('chrome-extension://') ||
-        url.startsWith('edge://') ||
-        url.startsWith('about:') ||
-        url.startsWith('file://')) {
+    if (
+      url.startsWith('chrome://') ||
+      url.startsWith('chrome-extension://') ||
+      url.startsWith('edge://') ||
+      url.startsWith('about:') ||
+      url.startsWith('file://')
+    ) {
       return false;
     }
-    
+
     return true;
   },
 
@@ -65,7 +67,7 @@ const UrlUtils = {
     } catch {
       return url;
     }
-  }
+  },
 };
 
 // Export for browser environment

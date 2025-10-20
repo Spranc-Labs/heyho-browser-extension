@@ -4,7 +4,7 @@
  * Handles messages from the auth UI and coordinates with AuthManager
  */
 
-const AuthHandlers = (function() {
+const AuthHandlers = (function () {
   'use strict';
 
   /**
@@ -14,18 +14,29 @@ const AuthHandlers = (function() {
     // Listen for messages from auth UI
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Only handle auth-related messages
-      if (!message.action || !message.action.startsWith('auth-') && !['login', 'signup', 'verifyEmail', 'resendVerification', 'logout', 'getAuthState'].includes(message.action)) {
+      if (
+        !message.action ||
+        (!message.action.startsWith('auth-') &&
+          ![
+            'login',
+            'signup',
+            'verifyEmail',
+            'resendVerification',
+            'logout',
+            'getAuthState',
+          ].includes(message.action))
+      ) {
         return false; // Let other handlers process this message
       }
 
       // Handle auth actions asynchronously
       handleAuthAction(message, sender)
         .then(sendResponse)
-        .catch(error => {
+        .catch((error) => {
           console.error('Auth handler error:', error);
           sendResponse({
             success: false,
-            error: error.message || 'An unexpected error occurred'
+            error: error.message || 'An unexpected error occurred',
           });
         });
 
@@ -41,33 +52,33 @@ const AuthHandlers = (function() {
   /**
    * Handle auth action
    */
-  async function handleAuthAction(message, _sender) {
+  function handleAuthAction(message, _sender) {
     const { action, data } = message;
 
     switch (action) {
-    case 'login':
-      return await handleLogin(data);
+      case 'login':
+        return handleLogin(data);
 
-    case 'signup':
-      return await handleSignup(data);
+      case 'signup':
+        return handleSignup(data);
 
-    case 'verifyEmail':
-      return await handleVerifyEmail(data);
+      case 'verifyEmail':
+        return handleVerifyEmail(data);
 
-    case 'resendVerification':
-      return await handleResendVerification(data);
+      case 'resendVerification':
+        return handleResendVerification(data);
 
-    case 'logout':
-      return await handleLogout();
+      case 'logout':
+        return handleLogout();
 
-    case 'getAuthState':
-      return await handleGetAuthState();
+      case 'getAuthState':
+        return handleGetAuthState();
 
-    default:
-      return {
-        success: false,
-        error: 'Unknown auth action'
-      };
+      default:
+        return {
+          success: false,
+          error: 'Unknown auth action',
+        };
     }
   }
 
@@ -80,7 +91,7 @@ const AuthHandlers = (function() {
     if (!email || !password) {
       return {
         success: false,
-        error: 'Email and password are required'
+        error: 'Email and password are required',
       };
     }
 
@@ -102,7 +113,7 @@ const AuthHandlers = (function() {
     if (!email || !password || !first_name || !last_name) {
       return {
         success: false,
-        error: 'All fields are required'
+        error: 'All fields are required',
       };
     }
 
@@ -124,14 +135,14 @@ const AuthHandlers = (function() {
     if (!email) {
       return {
         success: false,
-        error: 'Email is required'
+        error: 'Email is required',
       };
     }
 
     if (!code || code.length !== 6) {
       return {
         success: false,
-        error: 'Valid 6-digit code is required'
+        error: 'Valid 6-digit code is required',
       };
     }
 
@@ -153,7 +164,7 @@ const AuthHandlers = (function() {
     if (!email) {
       return {
         success: false,
-        error: 'Email is required'
+        error: 'Email is required',
       };
     }
 
@@ -182,16 +193,16 @@ const AuthHandlers = (function() {
   /**
    * Handle get auth state
    */
-  async function handleGetAuthState() {
+  function handleGetAuthState() {
     return {
       success: true,
-      data: self.AuthManager.getAuthState()
+      data: self.AuthManager.getAuthState(),
     };
   }
 
   // Public API
   return {
-    setupAuthMessageHandlers
+    setupAuthMessageHandlers,
   };
 })();
 

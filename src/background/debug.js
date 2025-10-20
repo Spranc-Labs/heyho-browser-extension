@@ -1,6 +1,6 @@
 /**
  * Debug Module for HeyHo Extension
- * 
+ *
  * Handles debug panel requests and data export functionality
  */
 
@@ -17,7 +17,7 @@ function setupDebugMessageHandlers() {
       'exportData',
       'exportAllData',
       'runMigration',
-      'checkModules'
+      'checkModules',
     ];
 
     if (!request.action || !debugActions.includes(request.action)) {
@@ -35,38 +35,38 @@ function setupDebugMessageHandlers() {
 async function handleDebugMessage(request, sender, sendResponse) {
   try {
     switch (request.action) {
-    case 'getDebugStats':
-      await handleGetDebugStats(sendResponse);
-      break;
-      
-    case 'triggerAggregation':
-      await handleTriggerAggregation(sendResponse);
-      break;
-      
-    case 'getRawEvents':
-      await handleGetRawEvents(sendResponse);
-      break;
-      
-    case 'exportData':
-      await handleExportData(request.dataType, sendResponse);
-      break;
-      
-    case 'exportAllData':
-      await handleExportAllData(sendResponse);
-      break;
-      
-    case 'runMigration':
-      await handleRunMigration(sendResponse);
-      break;
-      
-    case 'checkModules':
-      await handleCheckModules(sendResponse);
-      break;
+      case 'getDebugStats':
+        await handleGetDebugStats(sendResponse);
+        break;
 
-    default:
-      // This should never happen since we filter actions in the listener
-      console.error('Unexpected debug action:', request.action);
-      sendResponse({ success: false, error: 'Unexpected action' });
+      case 'triggerAggregation':
+        await handleTriggerAggregation(sendResponse);
+        break;
+
+      case 'getRawEvents':
+        await handleGetRawEvents(sendResponse);
+        break;
+
+      case 'exportData':
+        await handleExportData(request.dataType, sendResponse);
+        break;
+
+      case 'exportAllData':
+        await handleExportAllData(sendResponse);
+        break;
+
+      case 'runMigration':
+        await handleRunMigration(sendResponse);
+        break;
+
+      case 'checkModules':
+        await handleCheckModules(sendResponse);
+        break;
+
+      default:
+        // This should never happen since we filter actions in the listener
+        console.error('Unexpected debug action:', request.action);
+        sendResponse({ success: false, error: 'Unexpected action' });
     }
   } catch (error) {
     console.error('Debug message handler error:', error);
@@ -80,21 +80,21 @@ async function handleDebugMessage(request, sender, sendResponse) {
 async function handleGetDebugStats(sendResponse) {
   try {
     const { getAllEvents } = self.StorageModule;
-    
+
     // Get raw events from IndexedDB
     const rawEvents = await getAllEvents();
-    
+
     // Get aggregated data from browser.storage.local
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const [pageVisitsResult, tabAggregatesResult, lastAggregationResult] = await Promise.all([
       storage.get('pageVisits'),
       storage.get('tabAggregates'),
-      storage.get('lastAggregationTime')
+      storage.get('lastAggregationTime'),
     ]);
-    
+
     const pageVisits = pageVisitsResult.pageVisits || [];
     const tabAggregates = tabAggregatesResult.tabAggregates || [];
-    const lastAggregation = lastAggregationResult.lastAggregationTime 
+    const lastAggregation = lastAggregationResult.lastAggregationTime
       ? new Date(lastAggregationResult.lastAggregationTime).toLocaleString()
       : 'Never';
 
@@ -102,7 +102,7 @@ async function handleGetDebugStats(sendResponse) {
       eventsCount: rawEvents.length,
       visitsCount: pageVisits.length,
       tabsCount: tabAggregates.length,
-      lastAggregation
+      lastAggregation,
     };
 
     sendResponse({ success: true, stats });
@@ -118,25 +118,25 @@ async function handleTriggerAggregation(sendResponse) {
   try {
     // Use the refactored aggregator module
     const { triggerAggregation } = self.aggregator;
-    
+
     // Get count before processing
     const { getAllEvents } = self.StorageModule;
     const eventsBefore = await getAllEvents();
     const eventsCountBefore = eventsBefore.length;
-    
+
     // Run aggregation
     const result = await triggerAggregation();
-    
+
     // Store aggregation time
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     await storage.set({
-      lastAggregationTime: Date.now()
+      lastAggregationTime: Date.now(),
     });
-    
-    sendResponse({ 
-      success: result?.success || true, 
+
+    sendResponse({
+      success: result?.success || true,
       eventsProcessed: eventsCountBefore,
-      message: 'Aggregation completed successfully'
+      message: 'Aggregation completed successfully',
     });
   } catch (error) {
     sendResponse({ success: false, error: error.message });
@@ -150,7 +150,7 @@ async function handleGetRawEvents(sendResponse) {
   try {
     const { getAllEvents } = self.StorageModule;
     const events = await getAllEvents();
-    
+
     sendResponse({ success: true, data: events });
   } catch (error) {
     sendResponse({ success: false, error: error.message });
@@ -163,18 +163,18 @@ async function handleGetRawEvents(sendResponse) {
 async function handleExportData(dataType, sendResponse) {
   try {
     let data = [];
-    
+
     switch (dataType) {
-    case 'pageVisits':
-      data = await getAllPageVisits();
-      break;
-    case 'tabAggregates':
-      data = await getAllTabAggregates();
-      break;
-    default:
-      throw new Error(`Unknown data type: ${dataType}`);
+      case 'pageVisits':
+        data = await getAllPageVisits();
+        break;
+      case 'tabAggregates':
+        data = await getAllTabAggregates();
+        break;
+      default:
+        throw new Error(`Unknown data type: ${dataType}`);
     }
-    
+
     sendResponse({ success: true, data });
   } catch (error) {
     sendResponse({ success: false, error: error.message });
@@ -184,19 +184,19 @@ async function handleExportData(dataType, sendResponse) {
 /**
  * Check module loading status
  */
-async function handleCheckModules(sendResponse) {
+function handleCheckModules(sendResponse) {
   try {
     const moduleStatus = {
       StorageModule: !!self.StorageModule,
       AnonymousIdModule: !!self.AnonymousIdModule,
       EventsModule: !!self.EventsModule,
-      aggregator: !!self.aggregator
+      aggregator: !!self.aggregator,
     };
-    
+
     if (self.AnonymousIdModule) {
       moduleStatus.AnonymousIdMethods = Object.keys(self.AnonymousIdModule);
     }
-    
+
     console.log('🔍 Module Status:', moduleStatus);
     sendResponse({ success: true, modules: moduleStatus });
   } catch (error) {
@@ -212,24 +212,24 @@ async function handleRunMigration(sendResponse) {
   try {
     console.log('🔍 DEBUG: Checking AnonymousIdModule availability...');
     console.log('🔍 DEBUG: self.AnonymousIdModule exists:', !!self.AnonymousIdModule);
-    
+
     if (self.AnonymousIdModule) {
       console.log('🔍 DEBUG: Available methods:', Object.keys(self.AnonymousIdModule));
     }
-    
+
     if (!self.AnonymousIdModule || !self.AnonymousIdModule.migrateExistingData) {
-      const errorMsg = !self.AnonymousIdModule 
-        ? 'AnonymousIdModule not found' 
+      const errorMsg = !self.AnonymousIdModule
+        ? 'AnonymousIdModule not found'
         : 'migrateExistingData method not found';
       console.error('❌', errorMsg);
       sendResponse({ success: false, error: `Anonymous ID module not available: ${errorMsg}` });
       return;
     }
-    
+
     console.log('🔄 Starting manual migration...');
     await self.AnonymousIdModule.migrateExistingData();
     console.log('✅ Manual migration completed');
-    
+
     sendResponse({ success: true, message: 'Migration completed successfully' });
   } catch (error) {
     console.error('❌ Migration failed:', error);
@@ -243,38 +243,40 @@ async function handleRunMigration(sendResponse) {
 async function handleExportAllData(sendResponse) {
   try {
     const { getAllEvents } = self.StorageModule;
-    
+
     // Check if migration has been run
     let migrationStatus = 'unknown';
     if (self.AnonymousIdModule && self.AnonymousIdModule.isMigrationCompleted) {
-      migrationStatus = await self.AnonymousIdModule.isMigrationCompleted() ? 'completed' : 'pending';
+      migrationStatus = (await self.AnonymousIdModule.isMigrationCompleted())
+        ? 'completed'
+        : 'pending';
     }
-    
+
     console.log(`🔍 DEBUG: Migration status: ${migrationStatus}`);
-    
+
     // Get all data in parallel
     const [rawEvents, pageVisits, tabAggregates] = await Promise.all([
       getAllEvents(),
       getAllPageVisits(),
-      getAllTabAggregates()
+      getAllTabAggregates(),
     ]);
-    
+
     // Get system stats
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get('lastAggregationTime');
     const stats = {
       lastAggregationTime: result.lastAggregationTime || null,
-      exportedAt: Date.now()
+      exportedAt: Date.now(),
     };
-    
+
     sendResponse({
       success: true,
       data: {
         rawEvents,
         pageVisits,
         tabAggregates,
-        stats
-      }
+        stats,
+      },
     });
   } catch (error) {
     sendResponse({ success: false, error: error.message });
@@ -288,15 +290,15 @@ async function getAllPageVisits() {
   try {
     console.log('🔍 DEBUG: Getting page visits from chrome.storage.local...');
     // Get from browser.storage.local where aggregation saves them
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get('pageVisits');
     const pageVisits = result.pageVisits || [];
     console.log(`🔍 DEBUG: Found ${pageVisits.length} page visits in storage`);
-    
+
     if (pageVisits.length > 0) {
       console.log('🔍 DEBUG: Sample page visit:', pageVisits[0]);
     }
-    
+
     return pageVisits;
   } catch (error) {
     console.error('❌ DEBUG: Error getting page visits:', error);
@@ -311,15 +313,15 @@ async function getAllTabAggregates() {
   try {
     console.log('🔍 DEBUG: Getting tab aggregates from chrome.storage.local...');
     // Get from browser.storage.local where aggregation saves them
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get('tabAggregates');
     const tabAggregates = result.tabAggregates || [];
     console.log(`🔍 DEBUG: Found ${tabAggregates.length} tab aggregates in storage`);
-    
+
     if (tabAggregates.length > 0) {
       console.log('🔍 DEBUG: Sample tab aggregate:', tabAggregates[0]);
     }
-    
+
     return tabAggregates;
   } catch (error) {
     console.error('❌ DEBUG: Error getting tab aggregates:', error);
@@ -331,5 +333,5 @@ async function getAllTabAggregates() {
 self.DebugModule = {
   setupDebugMessageHandlers,
   getAllPageVisits,
-  getAllTabAggregates
+  getAllTabAggregates,
 };

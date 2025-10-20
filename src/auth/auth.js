@@ -3,6 +3,24 @@
  * Handles form submissions, validations, and UI interactions
  */
 
+// UI Timing Constants (in milliseconds)
+const UI_DELAYS = {
+  SUCCESS_REDIRECT: 1500, // Delay before redirect on success
+  ALERT_AUTO_HIDE: 5000, // Auto-hide alerts after 5s
+  VERIFICATION_CHECK: 2000, // Check verification status every 2s
+  ALERT_SLIDE_IN: 300, // Alert slide-in animation duration
+};
+
+// Validation Constants
+const VALIDATION = {
+  MIN_PASSWORD_LENGTH: 8,
+  MIN_NAME_LENGTH: 2,
+  VERIFICATION_CODE_LENGTH: 6,
+};
+
+// Font weight constant
+const FONT_WEIGHT_BOLD = 600;
+
 class AuthUI {
   constructor() {
     this.alertContainer = document.getElementById('alert-container');
@@ -15,9 +33,15 @@ class AuthUI {
    */
   detectPage() {
     const path = window.location.pathname;
-    if (path.includes('login.html')) {return 'login';}
-    if (path.includes('signup.html')) {return 'signup';}
-    if (path.includes('verify.html')) {return 'verify';}
+    if (path.includes('login.html')) {
+      return 'login';
+    }
+    if (path.includes('signup.html')) {
+      return 'signup';
+    }
+    if (path.includes('verify.html')) {
+      return 'verify';
+    }
     return 'unknown';
   }
 
@@ -26,15 +50,15 @@ class AuthUI {
    */
   initializePage() {
     switch (this.currentPage) {
-    case 'login':
-      this.initLoginPage();
-      break;
-    case 'signup':
-      this.initSignupPage();
-      break;
-    case 'verify':
-      this.initVerifyPage();
-      break;
+      case 'login':
+        this.initLoginPage();
+        break;
+      case 'signup':
+        this.initSignupPage();
+        break;
+      case 'verify':
+        this.initVerifyPage();
+        break;
     }
   }
 
@@ -70,7 +94,7 @@ class AuthUI {
         // Send message to background script to handle login
         const response = await chrome.runtime.sendMessage({
           action: 'login',
-          data: { email, password }
+          data: { email, password },
         });
 
         console.log('Login response:', response);
@@ -86,7 +110,7 @@ class AuthUI {
           // Redirect to popup after short delay
           setTimeout(() => {
             window.close();
-          }, 1500);
+          }, UI_DELAYS.SUCCESS_REDIRECT);
         } else {
           this.showAlert(response.error || 'Login failed. Please try again.', 'error');
         }
@@ -163,8 +187,8 @@ class AuthUI {
             email,
             password,
             first_name: firstName,
-            last_name: lastName
-          }
+            last_name: lastName,
+          },
         });
 
         if (response.success) {
@@ -176,7 +200,7 @@ class AuthUI {
           // Redirect to verify page
           setTimeout(() => {
             window.location.href = 'verify.html';
-          }, 1500);
+          }, UI_DELAYS.SUCCESS_REDIRECT);
         } else {
           this.showAlert(response.error || 'Signup failed. Please try again.', 'error');
         }
@@ -208,7 +232,7 @@ class AuthUI {
       this.showAlert('No pending verification found', 'error');
       setTimeout(() => {
         window.location.href = 'signup.html';
-      }, 2000);
+      }, UI_DELAYS.VERIFICATION_CHECK);
       return;
     }
 
@@ -223,8 +247,8 @@ class AuthUI {
 
       const code = codeInput.value.trim();
 
-      if (code.length !== 6) {
-        this.showAlert('Please enter a 6-digit code', 'error');
+      if (code.length !== VALIDATION.VERIFICATION_CODE_LENGTH) {
+        this.showAlert(`Please enter a ${VALIDATION.VERIFICATION_CODE_LENGTH}-digit code`, 'error');
         return;
       }
 
@@ -233,14 +257,16 @@ class AuthUI {
 
       try {
         // Get the pending email from storage
-        const { pendingVerificationEmail } = await chrome.storage.local.get('pendingVerificationEmail');
+        const { pendingVerificationEmail } = await chrome.storage.local.get(
+          'pendingVerificationEmail'
+        );
 
         const response = await chrome.runtime.sendMessage({
           action: 'verifyEmail',
           data: {
             email: pendingVerificationEmail,
-            code
-          }
+            code,
+          },
         });
 
         if (response.success) {
@@ -252,7 +278,7 @@ class AuthUI {
           // Redirect to login
           setTimeout(() => {
             window.location.href = 'login.html';
-          }, 1500);
+          }, UI_DELAYS.SUCCESS_REDIRECT);
         } else {
           this.showAlert(response.error || 'Invalid verification code', 'error');
         }
@@ -273,7 +299,7 @@ class AuthUI {
       try {
         const response = await chrome.runtime.sendMessage({
           action: 'resendVerification',
-          data: { email: pendingVerificationEmail }
+          data: { email: pendingVerificationEmail },
         });
 
         if (response.success) {
@@ -304,7 +330,7 @@ class AuthUI {
    */
   isPasswordStrong(password) {
     return (
-      password.length >= 8 &&
+      password.length >= VALIDATION.MIN_PASSWORD_LENGTH &&
       /[A-Z]/.test(password) &&
       /[a-z]/.test(password) &&
       /[0-9]/.test(password)
@@ -316,10 +342,10 @@ class AuthUI {
    */
   validatePasswordStrength(password) {
     const requirements = {
-      length: password.length >= 8,
+      length: password.length >= VALIDATION.MIN_PASSWORD_LENGTH,
       uppercase: /[A-Z]/.test(password),
       lowercase: /[a-z]/.test(password),
-      number: /[0-9]/.test(password)
+      number: /[0-9]/.test(password),
     };
 
     // Update UI for each requirement
@@ -334,7 +360,7 @@ class AuthUI {
       }
     });
 
-    return Object.values(requirements).every(valid => valid);
+    return Object.values(requirements).every((valid) => valid);
   }
 
   /**
@@ -353,13 +379,21 @@ class AuthUI {
       success: '✓',
       error: '✕',
       warning: '⚠',
-      info: 'ℹ'
+      info: 'ℹ',
     };
 
-    alert.innerHTML = `
-      <span style="font-weight: 600;">${icons[type] || 'ℹ'}</span>
-      <span>${message}</span>
-    `;
+    // Create icon span
+    const iconSpan = document.createElement('span');
+    iconSpan.style.fontWeight = String(FONT_WEIGHT_BOLD);
+    iconSpan.textContent = icons[type] || 'ℹ';
+
+    // Create message span
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = message;
+
+    // Append to alert
+    alert.appendChild(iconSpan);
+    alert.appendChild(messageSpan);
 
     this.alertContainer.appendChild(alert);
 
@@ -367,8 +401,8 @@ class AuthUI {
     if (type === 'success' || type === 'info') {
       setTimeout(() => {
         alert.style.opacity = '0';
-        setTimeout(() => alert.remove(), 300);
-      }, 5000);
+        setTimeout(() => alert.remove(), UI_DELAYS.ALERT_SLIDE_IN);
+      }, UI_DELAYS.ALERT_AUTO_HIDE);
     }
   }
 

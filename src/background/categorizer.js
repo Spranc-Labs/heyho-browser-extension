@@ -7,10 +7,51 @@
 
 class PageCategorizer {
   /**
+   * Duration and time constants (in seconds)
+   */
+  static get DURATION_CONSTANTS() {
+    return {
+      SHORT_VIDEO_THRESHOLD: 60, // Videos under 60s are short-form
+      LONG_ARTICLE_THRESHOLD: 1800, // Articles over 30min are long-form
+      LONG_VIDEO_THRESHOLD: 3600, // Videos over 1 hour
+      IDLE_ENGAGEMENT_THRESHOLD: 60000, // 60 seconds in milliseconds
+      MIN_ACTIVE_DURATION: 60, // Minimum 60s for productivity calculation
+    };
+  }
+
+  /**
+   * Confidence score constants
+   */
+  static get CONFIDENCE_SCORES() {
+    return {
+      THRESHOLD: 0.6, // Minimum confidence to use category
+      VERY_HIGH: 0.95,
+      HIGH: 0.9,
+      MEDIUM_HIGH: 0.85,
+      MEDIUM: 0.8,
+      MEDIUM_LOW: 0.7,
+      LOW: 0.6,
+      // Behavioral adjustments
+      IDLE_PENALTY: 0.2, // Reduce confidence by 20% for idle sessions
+      SHORT_DURATION_MULTIPLIER: 0.7, // 70% confidence for very short visits
+      NEGATIVE_ENGAGEMENT_MULTIPLIER: 0.1, // 10% confidence for negative engagement
+    };
+  }
+
+  /**
+   * Content size thresholds
+   */
+  static get CONTENT_THRESHOLDS() {
+    return {
+      MIN_ARTICLE_WORDS: 2000, // Articles should have 2000+ words
+    };
+  }
+
+  /**
    * Get confidence threshold
    */
   static get CONFIDENCE_THRESHOLD() {
-    return 0.6;
+    return this.CONFIDENCE_SCORES.THRESHOLD;
   }
 
   /**
@@ -31,7 +72,7 @@ class PageCategorizer {
       NEWS: 'news',
       SHOPPING: 'shopping',
       REFERENCE: 'reference',
-      UNCLASSIFIED: 'unclassified'
+      UNCLASSIFIED: 'unclassified',
     };
   }
 
@@ -75,7 +116,7 @@ class PageCategorizer {
     return {
       category: this.CATEGORIES.UNCLASSIFIED,
       confidence: 0,
-      method: 'unclassified'
+      method: 'unclassified',
     };
   }
 
@@ -84,28 +125,30 @@ class PageCategorizer {
    */
   static categorizeBySchema(metadata, pageVisit) {
     const { schemaType } = metadata;
-    if (!schemaType) {return null;}
+    if (!schemaType) {
+      return null;
+    }
 
     switch (schemaType) {
-    case 'VideoObject':
-      return this.categorizeVideo(metadata, pageVisit);
-    case 'Movie':
-    case 'TVSeries':
-    case 'TVEpisode':
-      return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.95 };
-    case 'SoftwareSourceCode':
-      return { category: this.CATEGORIES.WORK_CODING, confidence: 0.9 };
-    case 'Course':
-      return { category: this.CATEGORIES.LEARNING_VIDEO, confidence: 0.95 };
-    case 'NewsArticle':
-      return { category: this.CATEGORIES.NEWS, confidence: 0.95 };
-    case 'Article':
-    case 'BlogPosting':
-      return this.categorizeArticle(metadata, pageVisit);
-    case 'Product':
-      return { category: this.CATEGORIES.SHOPPING, confidence: 0.85 };
-    default:
-      return null;
+      case 'VideoObject':
+        return this.categorizeVideo(metadata, pageVisit);
+      case 'Movie':
+      case 'TVSeries':
+      case 'TVEpisode':
+        return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.95 };
+      case 'SoftwareSourceCode':
+        return { category: this.CATEGORIES.WORK_CODING, confidence: 0.9 };
+      case 'Course':
+        return { category: this.CATEGORIES.LEARNING_VIDEO, confidence: 0.95 };
+      case 'NewsArticle':
+        return { category: this.CATEGORIES.NEWS, confidence: 0.95 };
+      case 'Article':
+      case 'BlogPosting':
+        return this.categorizeArticle(metadata, pageVisit);
+      case 'Product':
+        return { category: this.CATEGORIES.SHOPPING, confidence: 0.85 };
+      default:
+        return null;
     }
   }
 
@@ -116,21 +159,33 @@ class PageCategorizer {
     const title = (pageVisit.title || '').toLowerCase();
     const url = pageVisit.url || '';
     const duration = this.parseDuration(metadata.schemaData?.duration);
+    const { SHORT_VIDEO_THRESHOLD } = this.DURATION_CONSTANTS;
+    const { HIGH, VERY_HIGH } = this.CONFIDENCE_SCORES;
 
     // Short video (<60s) or shorts URL = short-form
-    if (duration > 0 && duration < 60) {
-      return { category: this.CATEGORIES.ENTERTAINMENT_SHORT_FORM, confidence: 0.9 };
+    if (duration > 0 && duration < SHORT_VIDEO_THRESHOLD) {
+      return { category: this.CATEGORIES.ENTERTAINMENT_SHORT_FORM, confidence: HIGH };
     }
 
     if (url.includes('/shorts') || url.includes('/reels')) {
-      return { category: this.CATEGORIES.ENTERTAINMENT_SHORT_FORM, confidence: 0.95 };
+      return { category: this.CATEGORIES.ENTERTAINMENT_SHORT_FORM, confidence: VERY_HIGH };
     }
 
     // Learning keywords
-    const learningKeywords = ['tutorial', 'course', 'lecture', 'learn', 'how to',
-      'guide', 'lesson', 'training', 'workshop', 'education'];
+    const learningKeywords = [
+      'tutorial',
+      'course',
+      'lecture',
+      'learn',
+      'how to',
+      'guide',
+      'lesson',
+      'training',
+      'workshop',
+      'education',
+    ];
 
-    if (learningKeywords.some(kw => title.includes(kw))) {
+    if (learningKeywords.some((kw) => title.includes(kw))) {
       return { category: this.CATEGORIES.LEARNING_VIDEO, confidence: 0.95 };
     }
 
@@ -140,18 +195,20 @@ class PageCategorizer {
     }
 
     // Entertainment keywords
+    const { MEDIUM_HIGH, MEDIUM_LOW } = this.CONFIDENCE_SCORES;
+    const { LONG_ARTICLE_THRESHOLD } = this.DURATION_CONSTANTS;
     const entertainmentKeywords = ['trailer', 'movie', 'episode', 'stream', 'season'];
-    if (entertainmentKeywords.some(kw => title.includes(kw))) {
-      return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.85 };
+    if (entertainmentKeywords.some((kw) => title.includes(kw))) {
+      return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: MEDIUM_HIGH };
     }
 
     // Long video without learning = likely entertainment
-    if (duration > 1800) {
+    if (duration > LONG_ARTICLE_THRESHOLD) {
       return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.75 };
     }
 
     // Default video
-    return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.7 };
+    return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: MEDIUM_LOW };
   }
 
   /**
@@ -161,19 +218,31 @@ class PageCategorizer {
     const title = (pageVisit.title || '').toLowerCase();
     const keywords = (metadata.keywords || '').toLowerCase();
     const section = (metadata.articleSection || '').toLowerCase();
+    const { MEDIUM_HIGH } = this.CONFIDENCE_SCORES;
+    const { MIN_ARTICLE_WORDS } = this.CONTENT_THRESHOLDS;
 
     // Tech/learning keywords
-    const learningKeywords = ['programming', 'coding', 'development', 'software',
-      'tutorial', 'guide', 'documentation', 'tech'];
+    const learningKeywords = [
+      'programming',
+      'coding',
+      'development',
+      'software',
+      'tutorial',
+      'guide',
+      'documentation',
+      'tech',
+    ];
 
-    if (learningKeywords.some(kw =>
-      title.includes(kw) || keywords.includes(kw) || section.includes(kw)
-    )) {
-      return { category: this.CATEGORIES.LEARNING_READING, confidence: 0.85 };
+    if (
+      learningKeywords.some(
+        (kw) => title.includes(kw) || keywords.includes(kw) || section.includes(kw)
+      )
+    ) {
+      return { category: this.CATEGORIES.LEARNING_READING, confidence: MEDIUM_HIGH };
     }
 
     // Long-form content
-    if (metadata.wordCount > 2000) {
+    if (metadata.wordCount > MIN_ARTICLE_WORDS) {
       return { category: this.CATEGORIES.LEARNING_READING, confidence: 0.75 };
     }
 
@@ -186,7 +255,9 @@ class PageCategorizer {
    */
   static categorizeByOpenGraph(metadata, url, domain, title) {
     const { ogType } = metadata;
-    if (!ogType) {return null;}
+    if (!ogType) {
+      return null;
+    }
 
     if (ogType === 'video.movie' || ogType === 'video.episode') {
       return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.95 };
@@ -229,15 +300,26 @@ class PageCategorizer {
     }
 
     // Code editor platforms
-    const codeDomains = ['vscode.dev', 'codesandbox.io', 'replit.com', 'codepen.io', 'jsfiddle.net'];
-    if (codeDomains.some(d => domain.includes(d))) {
+    const codeDomains = [
+      'vscode.dev',
+      'codesandbox.io',
+      'replit.com',
+      'codepen.io',
+      'jsfiddle.net',
+    ];
+    if (codeDomains.some((d) => domain.includes(d))) {
       return { category: this.CATEGORIES.WORK_CODING, confidence: 0.9 };
     }
 
     // Communication tools
-    const commDomains = ['slack.com', 'teams.microsoft.com', 'discord.com',
-      'zoom.us', 'meet.google.com'];
-    if (commDomains.some(d => domain.includes(d))) {
+    const commDomains = [
+      'slack.com',
+      'teams.microsoft.com',
+      'discord.com',
+      'zoom.us',
+      'meet.google.com',
+    ];
+    if (commDomains.some((d) => domain.includes(d))) {
       return { category: this.CATEGORIES.WORK_COMMUNICATION, confidence: 0.9 };
     }
 
@@ -248,7 +330,7 @@ class PageCategorizer {
 
     // Documentation tools
     const docDomains = ['notion.so', 'coda.io', 'roamresearch.com', 'obsidian.md'];
-    if (docDomains.some(d => domain.includes(d))) {
+    if (docDomains.some((d) => domain.includes(d))) {
       if (metadata.isEditing) {
         return { category: this.CATEGORIES.WORK_DOCUMENTATION, confidence: 0.9 };
       }
@@ -264,16 +346,29 @@ class PageCategorizer {
     }
 
     // Documentation sites
-    const techDocDomains = ['stackoverflow.com', 'docs.python.org', 'developer.mozilla.org',
-      'reactjs.org', 'vuejs.org', 'nodejs.org', 'go.dev'];
-    if (techDocDomains.some(d => domain.includes(d))) {
+    const techDocDomains = [
+      'stackoverflow.com',
+      'docs.python.org',
+      'developer.mozilla.org',
+      'reactjs.org',
+      'vuejs.org',
+      'nodejs.org',
+      'go.dev',
+    ];
+    if (techDocDomains.some((d) => domain.includes(d))) {
       return { category: this.CATEGORIES.LEARNING_READING, confidence: 0.9 };
     }
 
     // Social media
-    const socialDomains = ['twitter.com', 'x.com', 'facebook.com', 'instagram.com',
-      'linkedin.com', 'tiktok.com'];
-    if (socialDomains.some(d => domain.includes(d))) {
+    const socialDomains = [
+      'twitter.com',
+      'x.com',
+      'facebook.com',
+      'instagram.com',
+      'linkedin.com',
+      'tiktok.com',
+    ];
+    if (socialDomains.some((d) => domain.includes(d))) {
       // LinkedIn articles = learning
       if (domain === 'linkedin.com' && url.includes('/pulse/')) {
         return { category: this.CATEGORIES.LEARNING_READING, confidence: 0.8 };
@@ -283,33 +378,60 @@ class PageCategorizer {
 
     // Reddit (check subreddit)
     if (domain === 'reddit.com') {
-      const workSubreddits = ['/r/programming', '/r/coding', '/r/webdev',
-        '/r/learnprogramming', '/r/javascript', '/r/python'];
-      if (workSubreddits.some(sub => url.includes(sub))) {
+      const workSubreddits = [
+        '/r/programming',
+        '/r/coding',
+        '/r/webdev',
+        '/r/learnprogramming',
+        '/r/javascript',
+        '/r/python',
+      ];
+      if (workSubreddits.some((sub) => url.includes(sub))) {
         return { category: this.CATEGORIES.LEARNING_READING, confidence: 0.7 };
       }
       return { category: this.CATEGORIES.SOCIAL_MEDIA, confidence: 0.9 };
     }
 
     // News sites
-    const newsDomains = ['nytimes.com', 'bbc.com', 'cnn.com', 'theguardian.com',
-      'reuters.com', 'apnews.com', 'techcrunch.com', 'theverge.com',
-      'arstechnica.com', 'news.ycombinator.com', 'lobste.rs'];
-    if (newsDomains.some(d => domain.includes(d))) {
+    const newsDomains = [
+      'nytimes.com',
+      'bbc.com',
+      'cnn.com',
+      'theguardian.com',
+      'reuters.com',
+      'apnews.com',
+      'techcrunch.com',
+      'theverge.com',
+      'arstechnica.com',
+      'news.ycombinator.com',
+      'lobste.rs',
+    ];
+    if (newsDomains.some((d) => domain.includes(d))) {
       return { category: this.CATEGORIES.NEWS, confidence: 0.85 };
     }
 
     // Shopping sites
-    const shopDomains = ['amazon.com', 'ebay.com', 'etsy.com', 'aliexpress.com',
-      'walmart.com', 'target.com'];
-    if (shopDomains.some(d => domain.includes(d))) {
+    const shopDomains = [
+      'amazon.com',
+      'ebay.com',
+      'etsy.com',
+      'aliexpress.com',
+      'walmart.com',
+      'target.com',
+    ];
+    if (shopDomains.some((d) => domain.includes(d))) {
       return { category: this.CATEGORIES.SHOPPING, confidence: 0.9 };
     }
 
     // Reference sites
-    const referenceDomains = ['wikipedia.org', 'dictionary.com', 'translate.google.com',
-      'weather.com', 'maps.google.com'];
-    if (referenceDomains.some(d => domain.includes(d))) {
+    const referenceDomains = [
+      'wikipedia.org',
+      'dictionary.com',
+      'translate.google.com',
+      'weather.com',
+      'maps.google.com',
+    ];
+    if (referenceDomains.some((d) => domain.includes(d))) {
       return { category: this.CATEGORIES.REFERENCE, confidence: 0.9 };
     }
 
@@ -323,7 +445,7 @@ class PageCategorizer {
 
     // Streaming platforms
     const streamingDomains = ['netflix.com', 'hulu.com', 'disneyplus.com', 'hbo.com'];
-    if (streamingDomains.some(d => domain.includes(d))) {
+    if (streamingDomains.some((d) => domain.includes(d))) {
       if (!url.includes('/watch') && !url.includes('/play')) {
         return { category: this.CATEGORIES.ENTERTAINMENT_BROWSING, confidence: 0.8 };
       }
@@ -354,18 +476,24 @@ class PageCategorizer {
    */
   static applyBehavioralAdjustments(result, pageVisit) {
     const { engagementRate = 0, duration = 0 } = pageVisit;
+    const { IDLE_PENALTY, SHORT_DURATION_MULTIPLIER, NEGATIVE_ENGAGEMENT_MULTIPLIER } =
+      this.CONFIDENCE_SCORES;
+    const { IDLE_ENGAGEMENT_THRESHOLD } = this.DURATION_CONSTANTS;
 
     // Very low engagement + short duration = potential distraction
-    if (engagementRate < 0.2 && duration < 60000) {
+    if (engagementRate < IDLE_PENALTY && duration < IDLE_ENGAGEMENT_THRESHOLD) {
       if (result.category.includes('work_') || result.category.includes('learning_')) {
         // Downgrade confidence
-        return { ...result, confidence: result.confidence * 0.7 };
+        return { ...result, confidence: result.confidence * SHORT_DURATION_MULTIPLIER };
       }
     }
 
     // Editing mode increases documentation confidence
     if (result.category === this.CATEGORIES.WORK_DOCUMENTATION && pageVisit.metadata?.isEditing) {
-      return { ...result, confidence: Math.min(result.confidence + 0.1, 1.0) };
+      return {
+        ...result,
+        confidence: Math.min(result.confidence + NEGATIVE_ENGAGEMENT_MULTIPLIER, 1.0),
+      };
     }
 
     return result;
@@ -375,17 +503,24 @@ class PageCategorizer {
    * Parse ISO 8601 duration to seconds
    */
   static parseDuration(duration) {
-    if (!duration) {return 0;}
+    if (!duration) {
+      return 0;
+    }
+
+    const SECONDS_PER_HOUR = 3600;
+    const SECONDS_PER_MINUTE = 60;
 
     try {
       const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-      if (!match) {return 0;}
+      if (!match) {
+        return 0;
+      }
 
       const hours = parseInt(match[1] || 0);
       const minutes = parseInt(match[2] || 0);
       const seconds = parseInt(match[3] || 0);
 
-      return hours * 3600 + minutes * 60 + seconds;
+      return hours * SECONDS_PER_HOUR + minutes * SECONDS_PER_MINUTE + seconds;
     } catch (error) {
       return 0;
     }

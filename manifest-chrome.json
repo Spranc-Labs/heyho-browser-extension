@@ -6,10 +6,32 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": [
+        "src/content/metadata-extractor.js",
+        "src/content/page-tracker.js"
+      ],
+      "run_at": "document_end",
+      "exclude_matches": [
+        "*://chrome://*/*",
+        "*://about:*",
+        "*://chrome-extension://*/*"
+      ]
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "HeyHo Extension Debug Panel"
+  },
   "permissions": [
     "tabs",
     "storage",
     "idle",
     "alarms"
+  ],
+  "host_permissions": [
+    "<all_urls>"
   ]
 }

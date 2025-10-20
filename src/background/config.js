@@ -21,7 +21,7 @@ const API_CONFIG = {
   staging: 'https://your-staging-api.com/api/v1',
 
   // Production API (update with your production URL)
-  production: 'https://your-production-api.com/api/v1'
+  production: 'https://your-production-api.com/api/v1',
 };
 
 // Select API URL based on environment
@@ -32,5 +32,5 @@ self.ConfigModule = {
   IS_DEV_MODE,
   devLogBuffer,
   API_BASE_URL,
-  API_CONFIG
+  API_CONFIG,
 };

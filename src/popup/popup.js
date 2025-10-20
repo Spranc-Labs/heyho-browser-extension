@@ -1,6 +1,6 @@
 /**
  * Popup Script for HeyHo Extension Debug Panel
- * 
+ *
  * Provides UI controls for testing and exporting aggregation data
  */
 
@@ -35,6 +35,7 @@ class DebugPanel {
   async waitForBackgroundScript(maxAttempts = 10, delay = 100) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
+        // eslint-disable-next-line no-await-in-loop -- Retry mechanism requires sequential attempts
         const response = await chrome.runtime.sendMessage({ action: 'getAuthState' });
         if (response) {
           return true; // Background script is ready
@@ -42,7 +43,10 @@ class DebugPanel {
       } catch (error) {
         // Background not ready yet, wait and retry
         if (i < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, delay));
+          // eslint-disable-next-line no-await-in-loop -- Delay between retry attempts
+          await new Promise((resolve) => {
+            setTimeout(resolve, delay);
+          });
         }
       }
     }
@@ -55,7 +59,7 @@ class DebugPanel {
   async loadAuthState() {
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'getAuthState'
+        action: 'getAuthState',
       });
 
       if (response.success && response.data) {
@@ -121,7 +125,7 @@ class DebugPanel {
   async loadSyncState() {
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'getSyncState'
+        action: 'getSyncState',
       });
 
       if (response.success && response.data) {
@@ -193,18 +197,18 @@ class DebugPanel {
     statusIndicator.classList.remove('connected', 'disconnected', 'syncing');
 
     switch (status) {
-    case 'connected':
-      statusIndicator.classList.add('connected');
-      statusText.textContent = 'Connected';
-      break;
-    case 'disconnected':
-      statusIndicator.classList.add('disconnected');
-      statusText.textContent = 'Disconnected';
-      break;
-    case 'syncing':
-      statusIndicator.classList.add('syncing');
-      statusText.textContent = 'Syncing...';
-      break;
+      case 'connected':
+        statusIndicator.classList.add('connected');
+        statusText.textContent = 'Connected';
+        break;
+      case 'disconnected':
+        statusIndicator.classList.add('disconnected');
+        statusText.textContent = 'Disconnected';
+        break;
+      case 'syncing':
+        statusIndicator.classList.add('syncing');
+        statusText.textContent = 'Syncing...';
+        break;
     }
   }
 
@@ -236,7 +240,7 @@ class DebugPanel {
     document.getElementById('trigger-aggregation').addEventListener('click', () => {
       this.triggerAggregation();
     });
-    
+
     document.getElementById('run-migration').addEventListener('click', () => {
       this.runMigration();
     });
@@ -262,7 +266,7 @@ class DebugPanel {
   async loadStats() {
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'getDebugStats'
+        action: 'getDebugStats',
       });
 
       if (response.success) {
@@ -287,7 +291,7 @@ class DebugPanel {
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'runMigration'
+        action: 'runMigration',
       });
 
       if (response.success) {
@@ -314,12 +318,12 @@ class DebugPanel {
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'triggerAggregation'
+        action: 'triggerAggregation',
       });
 
       if (response.success) {
         this.log(
-          `✅ Aggregation completed: processed ${response.eventsProcessed} events`, 
+          `✅ Aggregation completed: processed ${response.eventsProcessed} events`,
           'success'
         );
         this.loadStats(); // Refresh stats
@@ -339,13 +343,13 @@ class DebugPanel {
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'getRawEvents'
+        action: 'getRawEvents',
       });
 
       if (response.success) {
         const events = response.data;
         this.log(`Found ${events.length} raw events`, 'info');
-        
+
         if (events.length > 0) {
           console.log('Raw Events:', events);
           this.downloadJSON(events, 'raw-events.json');
@@ -364,7 +368,7 @@ class DebugPanel {
   async exportData(type) {
     const typeLabels = {
       pageVisits: 'Page Visits',
-      tabAggregates: 'Tab Aggregates'
+      tabAggregates: 'Tab Aggregates',
     };
 
     this.log(`Exporting ${typeLabels[type]}...`, 'info');
@@ -372,13 +376,13 @@ class DebugPanel {
     try {
       const response = await chrome.runtime.sendMessage({
         action: 'exportData',
-        dataType: type
+        dataType: type,
       });
 
       if (response.success) {
         const data = response.data;
         this.log(`Found ${data.length} ${typeLabels[type].toLowerCase()}`, 'info');
-        
+
         if (data.length > 0) {
           this.downloadJSON(data, `${type}.json`);
           this.log(`✅ ${typeLabels[type]} exported successfully`, 'success');
@@ -398,29 +402,29 @@ class DebugPanel {
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'exportAllData'
+        action: 'exportAllData',
       });
 
       if (response.success) {
         const { rawEvents, pageVisits, tabAggregates, stats } = response.data;
-        
+
         const allData = {
           exportedAt: new Date().toISOString(),
           stats: {
             rawEventsCount: rawEvents.length,
             pageVisitsCount: pageVisits.length,
-            tabAggregatesCount: tabAggregates.length
+            tabAggregatesCount: tabAggregates.length,
           },
           rawEvents,
           pageVisits,
           tabAggregates,
-          systemStats: stats
+          systemStats: stats,
         };
 
         this.downloadJSON(allData, 'heyho-aggregation-data.json');
         this.log(
           `✅ Complete export: ${rawEvents.length} events, ` +
-          `${pageVisits.length} visits, ${tabAggregates.length} tabs`, 
+            `${pageVisits.length} visits, ${tabAggregates.length} tabs`,
           'success'
         );
       } else {
@@ -435,12 +439,12 @@ class DebugPanel {
     const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     const a = document.createElement('a');
     a.href = url;
     a.download = filename;
     a.click();
-    
+
     URL.revokeObjectURL(url);
   }
 
@@ -483,7 +487,7 @@ class DebugPanel {
 
     try {
       const response = await chrome.runtime.sendMessage({
-        action: 'logout'
+        action: 'logout',
       });
 
       if (response.success) {
@@ -520,17 +524,21 @@ class DebugPanel {
     try {
       const response = await chrome.runtime.sendMessage({
         action: 'syncNow',
-        data: { force: false }
+        data: { force: false },
       });
 
       if (response.success) {
         const synced = response.synced || 0;
         if (synced > 0) {
           // Show count of newly created items (not just updates)
-          const newItems = (response.data?.page_visits_new || 0) + (response.data?.tab_aggregates_new || 0);
+          const newItems =
+            (response.data?.page_visits_new || 0) + (response.data?.tab_aggregates_new || 0);
 
           if (newItems > 0) {
-            this.log(`✅ Sync completed: ${newItems} new items added to browsing history`, 'success');
+            this.log(
+              `✅ Sync completed: ${newItems} new items added to browsing history`,
+              'success'
+            );
           } else {
             this.log(`ℹ️ Sync completed: All items already in history (${synced} updated)`, 'info');
           }

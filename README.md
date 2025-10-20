@@ -112,3 +112,96 @@ JWT_EXPIRES_IN="7d"
 ```bash
 npm test
 ```
+
+---
+
+## CI/CD & Code Quality
+
+![CI](https://github.com/Spranc-Labs/heyho-browser-extension/workflows/CI/badge.svg)
+
+### Automated Checks
+
+This project uses **GitHub Actions** for continuous integration and **Husky** for pre-commit hooks.
+
+#### GitHub Actions CI
+
+Every push and pull request triggers automated checks:
+
+- ✅ **Code Quality** - ESLint + Prettier
+- ✅ **Unit Tests** - Jest test suite
+- ✅ **Full Validation** - Combined checks
+- ✅ **Security Audit** - npm audit for vulnerabilities
+
+**View CI configuration:** [`.github/workflows/ci.yml`](./.github/workflows/ci.yml)
+
+#### Pre-commit Hooks (Husky)
+
+Automatically runs before each commit:
+
+1. **lint-staged** - Lints and formats only staged files
+2. **Jest tests** - Runs full test suite
+
+**Installation:**
+```bash
+npm install  # Husky installs automatically
+```
+
+**Bypass (not recommended):**
+```bash
+git commit --no-verify
+```
+
+### Code Quality Commands
+
+```bash
+# Check code quality
+npm run quality
+
+# Auto-fix issues
+npm run quality:fix
+
+# Run ESLint
+npm run lint
+npm run lint:fix
+
+# Run Prettier
+npm run format
+npm run format:check
+
+# Run all validation (lint + format + test)
+npm run validate
+```
+
+### Test Commands
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+```
+
+### Current Test Status
+
+- **Total Tests:** 79
+- **Passing:** 49 (62%) ⬆️ improved!
+- **Failing:** 30 (38% - IndexedDB mocking issues)
+
+**Recent Improvements:**
+- ✅ Installed `fake-indexeddb` for better IndexedDB mocking
+- ✅ Fixed 4 tests by improving mock setup
+- ✅ Reduced ESLint warnings from 112 to 111
+
+**Note:** Some tests still fail due to complex IndexedDB operations and Jest spy interactions with fake-indexeddb's structured clone algorithm. These tests work correctly in the actual browser extension. Further improvements to test mocking are planned.
+
+### Development Guidelines
+
+See [CLAUDE.md](./CLAUDE.md) for comprehensive development guidelines including:
+- JavaScript best practices
+- Code quality standards
+- Architecture patterns
+- Security guidelines

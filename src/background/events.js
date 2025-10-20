@@ -1,6 +1,6 @@
 /**
  * Events Module for HeyHo Extension
- * 
+ *
  * Handles creation and saving of tracking events.
  */
 
@@ -12,13 +12,20 @@
  */
 function getDomain(url) {
   try {
-    if (!url) {return '';}
-    
+    if (!url) {
+      return '';
+    }
+
     // Handle special chrome URLs and about: URLs
-    if (url.startsWith('chrome://') || url.startsWith('about:') || url.startsWith('moz-extension://') || url.startsWith('chrome-extension://')) {
+    if (
+      url.startsWith('chrome://') ||
+      url.startsWith('about:') ||
+      url.startsWith('moz-extension://') ||
+      url.startsWith('chrome-extension://')
+    ) {
       return url.split('/')[2] || url;
     }
-    
+
     const urlObj = new URL(url);
     return urlObj.hostname;
   } catch (error) {
@@ -41,32 +48,32 @@ function getDomain(url) {
  */
 async function createCoreEvent(type, tabId, url = '', metadata = {}) {
   const timestamp = Date.now();
-  
+
   // Get anonymous client ID if module is available
   let anonymousClientId = null;
   if (self.AnonymousIdModule && self.AnonymousIdModule.getOrCreateAnonymousId) {
     anonymousClientId = await self.AnonymousIdModule.getOrCreateAnonymousId();
   }
-  
+
   const event = {
     id: `evt_${timestamp}_${tabId}`,
     timestamp,
     type,
     tabId,
     url,
-    domain: getDomain(url)
+    domain: getDomain(url),
   };
-  
+
   // Add anonymous client ID if available
   if (anonymousClientId) {
     event.anonymousClientId = anonymousClientId;
   }
-  
+
   // Add metadata for special event types like HEARTBEAT
   if (type === 'HEARTBEAT' && metadata) {
     Object.assign(event, metadata);
   }
-  
+
   return event;
 }
 
@@ -83,18 +90,19 @@ async function logAndSaveEvent(eventObject) {
   }
 
   const { IS_DEV_MODE, devLogBuffer } = self.ConfigModule;
-  
+
   // Dev mode logging
   if (IS_DEV_MODE) {
     console.log(`CoreEvent ${eventObject.type}:`, eventObject);
-    
+
     // Add to dev buffer and log table for first 10 events
     devLogBuffer.push(eventObject);
     if (devLogBuffer.length <= 10) {
+      // eslint-disable-next-line no-console
       console.table(devLogBuffer);
     }
   }
-  
+
   // Save to IndexedDB
   try {
     const { addEvent } = self.StorageModule;
@@ -107,5 +115,5 @@ async function logAndSaveEvent(eventObject) {
 // Export for browser environment
 self.EventsModule = {
   createCoreEvent,
-  logAndSaveEvent
+  logAndSaveEvent,
 };

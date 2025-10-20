@@ -4,10 +4,10 @@
  * Handles synchronization of browsing data to the backend API
  */
 
-const SyncManager = (function() {
+const SyncManager = (function () {
   'use strict';
 
-  const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+  const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
   const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
 
   // Sync state
@@ -17,8 +17,8 @@ const SyncManager = (function() {
     lastSyncStatus: null,
     syncedDataCounts: {
       pageVisits: 0,
-      tabAggregates: 0
-    }
+      tabAggregates: 0,
+    },
   };
 
   /**
@@ -101,22 +101,28 @@ const SyncManager = (function() {
       }
 
       if (IS_DEV_MODE) {
-        console.log(`📊 Syncing ${pageVisits.length} page visits and ${tabAggregates.length} tab aggregates`);
+        console.log(
+          `📊 Syncing ${pageVisits.length} page visits and ${tabAggregates.length} tab aggregates`
+        );
       }
 
       // Send data to backend
-      const response = await self.ApiClient.post('/data/sync', {
-        anonymousClientId,
-        pageVisits,
-        tabAggregates
-      }, { authenticated: true });
+      const response = await self.ApiClient.post(
+        '/data/sync',
+        {
+          anonymousClientId,
+          pageVisits,
+          tabAggregates,
+        },
+        { authenticated: true }
+      );
 
       if (response.success) {
         // Update sync state
         syncState.lastSyncStatus = 'success';
         syncState.syncedDataCounts = {
           pageVisits: pageVisits.length,
-          tabAggregates: tabAggregates.length
+          tabAggregates: tabAggregates.length,
         };
 
         // Only update lastSyncTime if we actually synced data
@@ -127,7 +133,7 @@ const SyncManager = (function() {
         // Save sync state to storage
         await storage.set({
           lastSyncTime: syncState.lastSyncTime,
-          lastSyncStatus: syncState.lastSyncStatus
+          lastSyncStatus: syncState.lastSyncStatus,
         });
 
         // Clear synced data from local storage after successful sync
@@ -142,7 +148,7 @@ const SyncManager = (function() {
           success: true,
           message: 'Data synced successfully',
           synced: pageVisits.length + tabAggregates.length,
-          data: response.data // This now includes page_visits_new and tab_aggregates_new
+          data: response.data, // This now includes page_visits_new and tab_aggregates_new
         };
       } else {
         syncState.lastSyncStatus = 'failed';
@@ -155,10 +161,9 @@ const SyncManager = (function() {
         syncState.isSyncing = false;
         return {
           success: false,
-          error: response.error || 'Sync failed'
+          error: response.error || 'Sync failed',
         };
       }
-
     } catch (error) {
       console.error('Sync error:', error);
       syncState.lastSyncStatus = 'error';
@@ -167,7 +172,7 @@ const SyncManager = (function() {
 
       return {
         success: false,
-        error: error.message || 'Sync failed'
+        error: error.message || 'Sync failed',
       };
     }
   }
@@ -180,7 +185,7 @@ const SyncManager = (function() {
       isSyncing: syncState.isSyncing,
       lastSyncTime: syncState.lastSyncTime,
       lastSyncStatus: syncState.lastSyncStatus,
-      syncedDataCounts: syncState.syncedDataCounts
+      syncedDataCounts: syncState.syncedDataCounts,
     };
   }
 
@@ -192,7 +197,7 @@ const SyncManager = (function() {
     try {
       // Create alarm that fires every 5 minutes
       await chrome.alarms.create('data-sync', {
-        periodInMinutes: 5
+        periodInMinutes: 5,
       });
 
       // Set up listener for sync alarm
@@ -205,10 +210,8 @@ const SyncManager = (function() {
           // Only sync if authenticated
           if (self.AuthManager && self.AuthManager.isAuthenticated()) {
             await syncToBackend();
-          } else {
-            if (IS_DEV_MODE) {
-              console.log('⏭️ Skipping scheduled sync - not authenticated');
-            }
+          } else if (IS_DEV_MODE) {
+            console.log('⏭️ Skipping scheduled sync - not authenticated');
           }
         }
       });
@@ -226,7 +229,7 @@ const SyncManager = (function() {
     init,
     syncToBackend,
     getSyncState,
-    setupSyncAlarm
+    setupSyncAlarm,
   };
 })();
 
