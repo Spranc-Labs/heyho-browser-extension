@@ -6,19 +6,19 @@
 class AggregationStorage {
   constructor() {
     // Use browser.storage for better Firefox compatibility
-    this.storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
-    
+    this.storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
+
     // Storage keys
     this.KEYS = {
       EVENTS: 'pendingEvents',
       PAGE_VISITS: 'pageVisits',
       TAB_AGGREGATES: 'tabAggregates',
-      ACTIVE_VISIT: 'activeVisit'
+      ACTIVE_VISIT: 'activeVisit',
     };
   }
 
   // Event Management
-  
+
   async getEvents() {
     try {
       // Get events from IndexedDB instead of chrome.storage.local
@@ -27,7 +27,7 @@ class AggregationStorage {
         console.log(`Retrieved ${events.length} events from IndexedDB for aggregation`);
         return events;
       }
-      
+
       // Fallback to chrome.storage.local if IndexedDB not available
       const result = await this.storage.get(this.KEYS.EVENTS);
       return result[this.KEYS.EVENTS] || [];
@@ -49,7 +49,7 @@ class AggregationStorage {
     if (self.StorageModule && self.StorageModule.addEvent) {
       return await self.StorageModule.addEvent(event);
     }
-    
+
     // Fallback for testing - return false since we can't actually save
     console.warn('StorageModule not available, cannot add event');
     return false;
@@ -62,7 +62,7 @@ class AggregationStorage {
         console.log('Clearing processed events from IndexedDB');
         return await self.StorageModule.clearEvents();
       }
-      
+
       // Fallback to chrome.storage.local
       return await this.storage.set({ [this.KEYS.EVENTS]: [] });
     } catch (error) {
@@ -72,7 +72,7 @@ class AggregationStorage {
   }
 
   // Page Visit Management
-  
+
   async getPageVisits() {
     try {
       const result = await this.storage.get(this.KEYS.PAGE_VISITS);
@@ -100,7 +100,7 @@ class AggregationStorage {
   }
 
   // Tab Aggregate Management
-  
+
   async getTabAggregates() {
     try {
       const result = await this.storage.get(this.KEYS.TAB_AGGREGATES);
@@ -114,10 +114,11 @@ class AggregationStorage {
   async saveTabAggregates(aggregates) {
     try {
       // Convert Map to array if needed
-      const data = aggregates instanceof Map ? 
-        Array.from(aggregates.values()).map(a => a.toJSON()) : 
-        aggregates;
-      
+      const data =
+        aggregates instanceof Map
+          ? Array.from(aggregates.values()).map((a) => a.toJSON())
+          : aggregates;
+
       await this.storage.set({ [this.KEYS.TAB_AGGREGATES]: data });
       return true;
     } catch (error) {
@@ -128,13 +129,13 @@ class AggregationStorage {
 
   async getTabAggregate(tabId) {
     const aggregates = await this.getTabAggregates();
-    return aggregates.find(a => a.tabId === tabId) || null;
+    return aggregates.find((a) => a.tabId === tabId) || null;
   }
 
   async updateTabAggregate(tabId, updateFn) {
     const aggregates = await this.getTabAggregates();
-    const index = aggregates.findIndex(a => a.tabId === tabId);
-    
+    const index = aggregates.findIndex((a) => a.tabId === tabId);
+
     if (index >= 0) {
       aggregates[index] = updateFn(aggregates[index]);
     } else {
@@ -143,12 +144,12 @@ class AggregationStorage {
         aggregates.push(newAggregate);
       }
     }
-    
+
     return await this.saveTabAggregates(aggregates);
   }
 
   // Active Visit Management
-  
+
   async getActiveVisit() {
     try {
       const result = await this.storage.get(this.KEYS.ACTIVE_VISIT);
@@ -174,41 +175,43 @@ class AggregationStorage {
   }
 
   // Batch Operations
-  
+
   async saveProcessingResults(batch) {
     try {
-      console.log(`💾 Saving aggregation results: ${batch.pageVisits.length} visits, ` +
-                  `${batch.tabAggregates.size} aggregates`);
-      
+      console.log(
+        `💾 Saving aggregation results: ${batch.pageVisits.length} visits, ` +
+          `${batch.tabAggregates.size} aggregates`
+      );
+
       const promises = [];
-      
+
       // Save page visits
       if (batch.pageVisits.length > 0) {
         console.log(`Saving ${batch.pageVisits.length} new page visits...`);
         const existingVisits = await this.getPageVisits();
-        const newVisitsJSON = batch.pageVisits.map(v => v.toJSON());
+        const newVisitsJSON = batch.pageVisits.map((v) => v.toJSON());
         const allVisits = [...existingVisits, ...newVisitsJSON];
         promises.push(this.savePageVisits(allVisits));
         console.log(`Total page visits after save: ${allVisits.length}`);
       }
-      
+
       // Merge and save tab aggregates
       if (batch.tabAggregates.size > 0) {
         console.log(`Merging ${batch.tabAggregates.size} tab aggregates...`);
-        
+
         // Get existing aggregates
         const existingAggregates = await this.getTabAggregates();
         const aggregateMap = new Map();
-        
+
         // Add existing aggregates to map
         for (const agg of existingAggregates) {
           aggregateMap.set(agg.tabId, agg);
         }
-        
+
         // Merge new aggregates (overwrite if exists)
         for (const [tabId, newAgg] of batch.tabAggregates) {
           const newAggJSON = newAgg.toJSON();
-          
+
           // If aggregate exists, merge the data
           if (aggregateMap.has(tabId)) {
             const existing = aggregateMap.get(tabId);
@@ -225,28 +228,30 @@ class AggregationStorage {
             // Recalculate statistics
             existing.statistics = {
               mostVisitedDomain: this._getMostVisitedDomain(existing.domainDurations),
-              averagePageDuration: existing.pageCount > 0 ? 
-                Math.round(existing.totalActiveDuration / existing.pageCount) : 0
+              averagePageDuration:
+                existing.pageCount > 0
+                  ? Math.round(existing.totalActiveDuration / existing.pageCount)
+                  : 0,
             };
           } else {
             aggregateMap.set(tabId, newAggJSON);
           }
         }
-        
+
         // Convert map back to array and save
         const mergedAggregates = Array.from(aggregateMap.values());
         promises.push(this.saveTabAggregates(mergedAggregates));
         console.log(`Total tab aggregates after merge: ${mergedAggregates.length}`);
       }
-      
+
       // Don't clear events here - that's handled by the processor after successful save
-      
+
       // Update active visit
       if (batch.activeVisit) {
         console.log('Updating active visit...');
         promises.push(this.setActiveVisit(batch.activeVisit));
       }
-      
+
       await Promise.all(promises);
       console.log('✅ All aggregation data saved successfully');
       return true;
@@ -257,21 +262,21 @@ class AggregationStorage {
   }
 
   // Utility Methods
-  
+
   async getStatistics() {
     try {
       const [events, visits, aggregates] = await Promise.all([
         this.getEvents(),
         this.getPageVisits(),
-        this.getTabAggregates()
+        this.getTabAggregates(),
       ]);
-      
+
       return {
         eventsCount: events.length,
         pageVisitsCount: visits.length,
         tabAggregatesCount: aggregates.length,
         totalDomains: this._countUniqueDomains(visits),
-        storageUsage: await this.getStorageUsage()
+        storageUsage: await this.getStorageUsage(),
       };
     } catch (error) {
       console.error('Failed to get statistics:', error);
@@ -284,7 +289,7 @@ class AggregationStorage {
       const bytes = await this.storage.getBytesInUse();
       return {
         bytes,
-        megabytes: (bytes / (1024 * 1024)).toFixed(2)
+        megabytes: (bytes / (1024 * 1024)).toFixed(2),
       };
     } catch (error) {
       return { bytes: 0, megabytes: '0.00' };
@@ -307,15 +312,15 @@ class AggregationStorage {
         this.getEvents(),
         this.getPageVisits(),
         this.getTabAggregates(),
-        this.getActiveVisit()
+        this.getActiveVisit(),
       ]);
-      
+
       return {
         events,
         pageVisits: visits,
         tabAggregates: aggregates,
         activeVisit,
-        exportedAt: Date.now()
+        exportedAt: Date.now(),
       };
     } catch (error) {
       console.error('Failed to export data:', error);
@@ -324,23 +329,23 @@ class AggregationStorage {
   }
 
   // Private Helper Methods
-  
+
   _countUniqueDomains(visits) {
-    const domains = new Set(visits.map(v => v.domain).filter(Boolean));
+    const domains = new Set(visits.map((v) => v.domain).filter(Boolean));
     return domains.size;
   }
 
   _getMostVisitedDomain(domainDurations) {
     let maxDuration = 0;
     let mostVisited = null;
-    
+
     for (const [domain, duration] of Object.entries(domainDurations || {})) {
       if (duration > maxDuration) {
         maxDuration = duration;
         mostVisited = domain;
       }
     }
-    
+
     return mostVisited;
   }
 }

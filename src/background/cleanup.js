@@ -1,6 +1,6 @@
 /**
  * Cleanup Module for HeyHo Extension
- * 
+ *
  * Handles the logic for periodically cleaning up old data.
  */
 
@@ -11,52 +11,51 @@
 async function performCleanup() {
   const { IS_DEV_MODE } = self.ConfigModule;
   const startTime = Date.now();
-  
+
   try {
     const { getExpiredEvents, deleteEvents } = self.StorageModule;
-    
+
     if (IS_DEV_MODE) {
       console.log('🧹 Starting daily cleanup process...');
     }
-    
+
     // Get expired events (older than 7 days)
     const expiredEventIds = await getExpiredEvents(168);
-    
+
     if (expiredEventIds.length === 0) {
       if (IS_DEV_MODE) {
         console.log('✅ Cleanup complete: No expired events found');
       }
       return;
     }
-    
+
     if (IS_DEV_MODE) {
       console.log(`📊 Found ${expiredEventIds.length} expired events to delete`);
     }
-    
+
     // Delete expired events
     const deletedCount = await deleteEvents(expiredEventIds);
-    
+
     const endTime = Date.now();
     const duration = endTime - startTime;
-    
+
     if (IS_DEV_MODE) {
       console.log('✅ Cleanup complete:', {
         eventsScanned: expiredEventIds.length,
         eventsDeleted: deletedCount,
         durationMs: duration,
         startTime: new Date(startTime).toISOString(),
-        endTime: new Date(endTime).toISOString()
+        endTime: new Date(endTime).toISOString(),
       });
     }
-    
   } catch (error) {
     console.error('❌ Cleanup process failed:', error);
-    
+
     if (IS_DEV_MODE) {
       console.error('Cleanup error details:', {
         message: error.message,
         stack: error.stack,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }
@@ -67,15 +66,15 @@ async function performCleanup() {
  */
 async function setupCleanupAlarm() {
   const { IS_DEV_MODE } = self.ConfigModule;
-  
+
   try {
     // Create daily cleanup alarm that starts 24 hours after extension load
     // and repeats every 24 hours
     await browser.alarms.create('daily-cleanup', {
-      delayInMinutes: 24 * 60,      // Start after 24 hours
-      periodInMinutes: 24 * 60      // Repeat every 24 hours
+      delayInMinutes: 24 * 60, // Start after 24 hours
+      periodInMinutes: 24 * 60, // Repeat every 24 hours
     });
-    
+
     if (IS_DEV_MODE) {
       console.log('Daily cleanup alarm created successfully');
     }
@@ -89,13 +88,13 @@ async function setupCleanupAlarm() {
  */
 function setupCleanupAlarmListener() {
   const { IS_DEV_MODE } = self.ConfigModule;
-  
+
   // Enhanced alarm listener with cleanup handling
   browser.alarms.onAlarm.addListener(async (alarm) => {
     if (IS_DEV_MODE) {
       console.log('⏰ Alarm fired:', alarm.name);
     }
-    
+
     if (alarm.name === 'daily-cleanup') {
       await performCleanup();
     } else {
@@ -110,5 +109,5 @@ function setupCleanupAlarmListener() {
 self.CleanupModule = {
   performCleanup,
   setupCleanupAlarm,
-  setupCleanupAlarmListener
+  setupCleanupAlarmListener,
 };

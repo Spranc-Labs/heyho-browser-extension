@@ -1,6 +1,6 @@
 /**
  * Listeners Module for HeyHo Extension
- * 
+ *
  * Houses all the browser tab event listeners.
  */
 
@@ -45,7 +45,9 @@ function setupTabListeners() {
 
   // 1. Tab Created - When a new tab is created
   browser.tabs.onCreated.addListener(async (tab) => {
-    if (IS_DEV_MODE) {console.log('🔄 Service worker woke up: Tab created');}
+    if (IS_DEV_MODE) {
+      console.log('🔄 Service worker woke up: Tab created');
+    }
     ensureHeartbeat();
     const eventObject = await createCoreEvent('CREATE', tab.id, tab.url);
     logAndSaveEvent(eventObject);
@@ -53,7 +55,9 @@ function setupTabListeners() {
 
   // 2. Tab Activated - When user switches focus to a different tab
   browser.tabs.onActivated.addListener(async (activeInfo) => {
-    if (IS_DEV_MODE) {console.log('🔄 Service worker woke up: Tab activated');}
+    if (IS_DEV_MODE) {
+      console.log('🔄 Service worker woke up: Tab activated');
+    }
     ensureHeartbeat();
     try {
       // Get tab details to retrieve URL
@@ -74,7 +78,9 @@ function setupTabListeners() {
   browser.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
     // Only log NAVIGATE events when URL actually changes
     if (changeInfo.url) {
-      if (IS_DEV_MODE) {console.log('🔄 Service worker woke up: Tab navigated');}
+      if (IS_DEV_MODE) {
+        console.log('🔄 Service worker woke up: Tab navigated');
+      }
       ensureHeartbeat();
       const eventObject = await createCoreEvent('NAVIGATE', tabId, changeInfo.url);
       logAndSaveEvent(eventObject);
@@ -83,7 +89,9 @@ function setupTabListeners() {
 
   // 4. Tab Removed - When a tab is closed
   browser.tabs.onRemoved.addListener(async (tabId) => {
-    if (IS_DEV_MODE) {console.log('🔄 Service worker woke up: Tab closed');}
+    if (IS_DEV_MODE) {
+      console.log('🔄 Service worker woke up: Tab closed');
+    }
     ensureHeartbeat();
     // URL information is not available for removed tabs, so we omit it
     const eventObject = await createCoreEvent('CLOSE', tabId, '');
@@ -95,7 +103,9 @@ function setupTabListeners() {
   // 5. Window Focus - When user switches back to browser
   browser.windows.onFocusChanged.addListener((windowId) => {
     if (windowId !== browser.windows.WINDOW_ID_NONE) {
-      if (IS_DEV_MODE) {console.log('🔄 Service worker woke up: Window focused');}
+      if (IS_DEV_MODE) {
+        console.log('🔄 Service worker woke up: Window focused');
+      }
       ensureHeartbeat();
       // Don't create an event for this, just wake up the service worker
     }
@@ -103,7 +113,9 @@ function setupTabListeners() {
 
   // 6. Window Created - When new browser window opens
   browser.windows.onCreated.addListener((_window) => {
-    if (IS_DEV_MODE) {console.log('🔄 Service worker woke up: Window created');}
+    if (IS_DEV_MODE) {
+      console.log('🔄 Service worker woke up: Window created');
+    }
     ensureHeartbeat();
     // Don't create an event for this, just wake up the service worker
   });
@@ -112,5 +124,5 @@ function setupTabListeners() {
 // Export for browser environment
 self.ListenersModule = {
   setupTabListeners,
-  setupMessageListener
+  setupMessageListener,
 };

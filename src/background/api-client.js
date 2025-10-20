@@ -5,7 +5,7 @@
  * Includes automatic JWT token injection and error handling
  */
 
-const ApiClient = (function() {
+const ApiClient = (function () {
   'use strict';
 
   /**
@@ -19,7 +19,7 @@ const ApiClient = (function() {
    * Get stored access token
    */
   async function getAccessToken() {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get('accessToken');
     return result.accessToken || null;
   }
@@ -38,7 +38,7 @@ const ApiClient = (function() {
       headers = {},
       authenticated = false,
       timeout = 30000,
-      _retryCount = 0 // Internal flag to prevent infinite retry loops
+      _retryCount = 0, // Internal flag to prevent infinite retry loops
     } = options;
 
     const url = `${getBaseURL()}${endpoint}`;
@@ -46,7 +46,7 @@ const ApiClient = (function() {
     // Build headers
     const requestHeaders = {
       'Content-Type': 'application/json',
-      ...headers
+      ...headers,
     };
 
     // Add JWT token if authenticated request
@@ -62,7 +62,7 @@ const ApiClient = (function() {
       method,
       headers: requestHeaders,
       mode: 'cors',
-      credentials: 'omit'
+      credentials: 'omit',
     };
 
     // Add body for POST/PUT requests
@@ -77,10 +77,7 @@ const ApiClient = (function() {
       });
 
       // Make request with timeout
-      const response = await Promise.race([
-        fetch(url, config),
-        timeoutPromise
-      ]);
+      const response = await Promise.race([fetch(url, config), timeoutPromise]);
 
       // Parse response
       let data;
@@ -122,11 +119,7 @@ const ApiClient = (function() {
           }
         }
 
-        throw new ApiError(
-          'Session expired. Please log in again.',
-          response.status,
-          data
-        );
+        throw new ApiError('Session expired. Please log in again.', response.status, data);
       }
 
       // Handle other HTTP errors
@@ -135,7 +128,7 @@ const ApiClient = (function() {
         console.error('API Error Response:', {
           status: response.status,
           data: data,
-          message: data.message || data.error || `HTTP ${response.status}`
+          message: data.message || data.error || `HTTP ${response.status}`,
         });
 
         throw new ApiError(
@@ -148,9 +141,8 @@ const ApiClient = (function() {
       return {
         success: true,
         data,
-        status: response.status
+        status: response.status,
       };
-
     } catch (error) {
       console.error('API Request Error:', error);
 
@@ -160,7 +152,7 @@ const ApiClient = (function() {
           success: false,
           error: error.message,
           status: error.status,
-          details: error.details
+          details: error.details,
         };
       }
 
@@ -169,7 +161,7 @@ const ApiClient = (function() {
         return {
           success: false,
           error: 'Network error. Please check your connection.',
-          status: 0
+          status: 0,
         };
       }
 
@@ -178,7 +170,7 @@ const ApiClient = (function() {
         return {
           success: false,
           error: 'Request timeout. Please try again.',
-          status: 0
+          status: 0,
         };
       }
 
@@ -186,7 +178,7 @@ const ApiClient = (function() {
       return {
         success: false,
         error: error.message || 'An unexpected error occurred',
-        status: 0
+        status: 0,
       };
     }
   }
@@ -206,35 +198,35 @@ const ApiClient = (function() {
   /**
    * GET request
    */
-  async function get(endpoint, options = {}) {
+  function get(endpoint, options = {}) {
     return request(endpoint, { ...options, method: 'GET' });
   }
 
   /**
    * POST request
    */
-  async function post(endpoint, body, options = {}) {
+  function post(endpoint, body, options = {}) {
     return request(endpoint, { ...options, method: 'POST', body });
   }
 
   /**
    * PUT request
    */
-  async function put(endpoint, body, options = {}) {
+  function put(endpoint, body, options = {}) {
     return request(endpoint, { ...options, method: 'PUT', body });
   }
 
   /**
    * PATCH request
    */
-  async function patch(endpoint, body, options = {}) {
+  function patch(endpoint, body, options = {}) {
     return request(endpoint, { ...options, method: 'PATCH', body });
   }
 
   /**
    * DELETE request
    */
-  async function del(endpoint, options = {}) {
+  function del(endpoint, options = {}) {
     return request(endpoint, { ...options, method: 'DELETE' });
   }
 
@@ -246,7 +238,7 @@ const ApiClient = (function() {
     put,
     patch,
     delete: del,
-    ApiError
+    ApiError,
   };
 })();
 

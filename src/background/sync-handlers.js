@@ -4,7 +4,7 @@
  * Handles messages from the UI and coordinates with SyncManager
  */
 
-const SyncHandlers = (function() {
+const SyncHandlers = (function () {
   'use strict';
 
   /**
@@ -21,11 +21,11 @@ const SyncHandlers = (function() {
       // Handle sync actions asynchronously
       handleSyncAction(message, sender)
         .then(sendResponse)
-        .catch(error => {
+        .catch((error) => {
           console.error('Sync handler error:', error);
           sendResponse({
             success: false,
-            error: error.message || 'An unexpected error occurred'
+            error: error.message || 'An unexpected error occurred',
           });
         });
 
@@ -45,17 +45,17 @@ const SyncHandlers = (function() {
     const { action, data } = message;
 
     switch (action) {
-    case 'syncNow':
-      return await handleSyncNow(data);
+      case 'syncNow':
+        return await handleSyncNow(data);
 
-    case 'getSyncState':
-      return await handleGetSyncState();
+      case 'getSyncState':
+        return await handleGetSyncState();
 
-    default:
-      return {
-        success: false,
-        error: 'Unknown sync action'
-      };
+      default:
+        return {
+          success: false,
+          error: 'Unknown sync action',
+        };
     }
   }
 
@@ -83,18 +83,18 @@ const SyncHandlers = (function() {
   /**
    * Handle get sync state
    */
-  async function handleGetSyncState() {
+  function handleGetSyncState() {
     const syncState = self.SyncManager.getSyncState();
 
     return {
       success: true,
-      data: syncState
+      data: syncState,
     };
   }
 
   // Public API
   return {
-    setupSyncMessageHandlers
+    setupSyncMessageHandlers,
   };
 })();
 

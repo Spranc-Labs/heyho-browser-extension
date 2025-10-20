@@ -16,12 +16,16 @@
   "globals": {
     "browser": "readonly",
     "chrome": "readonly",
-    "self": "writable"
+    "self": "writable",
+    "importScripts": "readonly",
+    "indexedDB": "readonly",
+    "IDBKeyRange": "readonly"
   },
   "plugins": [
     "no-unsanitized"
   ],
   "rules": {
+    "indent": 0,
     "no-unused-vars": ["error", {
       "vars": "all",
       "args": "after-used",

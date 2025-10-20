@@ -1,6 +1,6 @@
 /**
  * Initialization Module for HeyHo Extension
- * 
+ *
  * Handles the startup and initialization sequence.
  */
 
@@ -9,7 +9,7 @@
  */
 async function initializeStorage() {
   const { IS_DEV_MODE } = self.ConfigModule;
-  
+
   try {
     const { initDB } = self.StorageModule;
     await initDB();
@@ -26,27 +26,27 @@ async function initializeStorage() {
  */
 async function recoverActiveSession() {
   try {
-    const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
     const result = await storage.get('activeVisit');
-    
+
     if (result.activeVisit) {
       console.log('📚 Found active visit from previous session, completing it...');
-      
+
       // Create a page visit and complete it
       const { PageVisit } = self;
       const recoveredVisit = new PageVisit(result.activeVisit);
       recoveredVisit.complete(Date.now());
-      
+
       // Save the completed visit
       const visitsResult = await storage.get('pageVisits');
       const pageVisits = visitsResult.pageVisits || [];
       pageVisits.push(recoveredVisit.toJSON());
-      
-      await storage.set({ 
+
+      await storage.set({
         pageVisits,
-        activeVisit: null  // Clear the active visit
+        activeVisit: null, // Clear the active visit
       });
-      
+
       console.log('✅ Recovered and completed previous session visit');
     }
   } catch (error) {
@@ -64,7 +64,7 @@ async function setupTokenValidationAlarm() {
   try {
     // Create alarm that fires every 15 minutes
     await chrome.alarms.create('token-validation', {
-      periodInMinutes: 15
+      periodInMinutes: 15,
     });
 
     // Set up listener for token validation alarm
@@ -154,7 +154,7 @@ async function initialize() {
 
   // Setup sync message handlers
   setupSyncMessageHandlers();
-  
+
   // Run data migration for anonymous client ID (if module is available)
   if (self.AnonymousIdModule && self.AnonymousIdModule.migrateExistingData) {
     try {
@@ -166,7 +166,7 @@ async function initialize() {
       console.error('❌ Anonymous client ID migration failed:', error);
     }
   }
-  
+
   // Initialize the aggregation system
   await initAggregator();
 
@@ -192,13 +192,13 @@ async function initialize() {
 
   // Setup message listener for content scripts
   setupMessageListener();
-  
+
   // Run initial cleanup on startup to handle any old data
   if (IS_DEV_MODE) {
     console.log('🚀 Running initial cleanup on startup...');
   }
   await performCleanup();
-  
+
   // Set up recurring cleanup alarm
   await setupCleanupAlarm();
 
@@ -221,7 +221,7 @@ async function initialize() {
 
 // Export for browser environment
 self.InitModule = {
-  initialize
+  initialize,
 };
 
 // Add service worker lifecycle logging

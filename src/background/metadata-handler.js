@@ -4,7 +4,7 @@
  * Handles page metadata from content scripts and caches it for categorization.
  */
 
-const MetadataHandler = (function() {
+const MetadataHandler = (function () {
   'use strict';
 
   const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
@@ -50,7 +50,7 @@ const MetadataHandler = (function() {
       url: data.url,
       title: data.title,
       metadata: data.metadata,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
 
     if (IS_DEV_MODE) {
@@ -59,7 +59,7 @@ const MetadataHandler = (function() {
         title: data.title,
         schemaType: data.metadata?.schemaType,
         ogType: data.metadata?.ogType,
-        category: data.metadata?.category
+        category: data.metadata?.category,
       });
     }
   }
@@ -129,7 +129,7 @@ const MetadataHandler = (function() {
   function getStats() {
     return {
       totalCached: metadataCache.size,
-      tabIds: Array.from(metadataCache.keys())
+      tabIds: Array.from(metadataCache.keys()),
     };
   }
 
@@ -140,7 +140,7 @@ const MetadataHandler = (function() {
     getMetadata,
     getTitle,
     clearMetadata,
-    getStats
+    getStats,
   };
 })();
 

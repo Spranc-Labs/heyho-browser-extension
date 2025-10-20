@@ -4,17 +4,17 @@
  * Handles user authentication, token management, and auth state
  */
 
-const AuthManager = (function() {
+const AuthManager = (function () {
   'use strict';
 
-  const storage = (typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local);
+  const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
   const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
 
   // Auth state
   let authState = {
     isAuthenticated: false,
     user: null,
-    tokens: null
+    tokens: null,
   };
 
   /**
@@ -46,14 +46,20 @@ const AuthManager = (function() {
    */
   async function loadAuthState() {
     try {
-      const result = await storage.get(['accessToken', 'idToken', 'refreshToken', 'tokenExpiry', 'userData']);
+      const result = await storage.get([
+        'accessToken',
+        'idToken',
+        'refreshToken',
+        'tokenExpiry',
+        'userData',
+      ]);
 
       if (result.accessToken && result.idToken) {
         authState.tokens = {
           accessToken: result.accessToken,
           idToken: result.idToken,
           refreshToken: result.refreshToken,
-          expiry: result.tokenExpiry
+          expiry: result.tokenExpiry,
         };
 
         // Decode user data from idToken
@@ -106,7 +112,7 @@ const AuthManager = (function() {
       }
 
       const response = await self.ApiClient.post('/auth/refresh', {
-        refreshToken: authState.tokens.refreshToken
+        refreshToken: authState.tokens.refreshToken,
       });
 
       if (response.success && response.data) {
@@ -120,7 +126,7 @@ const AuthManager = (function() {
           accessToken: tokenData.AccessToken,
           idToken: tokenData.IdToken,
           refreshToken: tokenData.RefreshToken,
-          expiry: Date.now() + (tokenData.ExpiresIn * 1000)
+          expiry: Date.now() + tokenData.ExpiresIn * 1000,
         };
 
         // Update user data from new ID token
@@ -137,7 +143,6 @@ const AuthManager = (function() {
         console.log('❌ Token refresh failed:', response.error);
       }
       return false;
-
     } catch (error) {
       console.error('Token refresh error:', error);
       return false;
@@ -186,7 +191,7 @@ const AuthManager = (function() {
 
       const response = await self.ApiClient.post('/auth/login', {
         email,
-        password
+        password,
       });
 
       if (response.success && response.data) {
@@ -201,7 +206,7 @@ const AuthManager = (function() {
           accessToken: tokenData.AccessToken,
           idToken: tokenData.IdToken,
           refreshToken: tokenData.RefreshToken,
-          expiry: Date.now() + (tokenData.ExpiresIn * 1000)
+          expiry: Date.now() + tokenData.ExpiresIn * 1000,
         };
 
         // Decode and store user data
@@ -214,7 +219,7 @@ const AuthManager = (function() {
         // Trigger data sync after successful login (if SyncManager available)
         if (self.SyncManager && self.SyncManager.syncToBackend) {
           setTimeout(() => {
-            self.SyncManager.syncToBackend().catch(err => {
+            self.SyncManager.syncToBackend().catch((err) => {
               console.error('Post-login sync failed:', err);
             });
           }, 1000); // Wait 1 second to let UI settle
@@ -237,7 +242,6 @@ const AuthManager = (function() {
       }
 
       return { success: false, error: errorMessage };
-
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: error.message || 'Login failed' };
@@ -257,7 +261,7 @@ const AuthManager = (function() {
         email,
         password,
         first_name: firstName,
-        last_name: lastName
+        last_name: lastName,
       });
 
       if (response.success) {
@@ -269,12 +273,11 @@ const AuthManager = (function() {
           success: true,
           message: 'Account created. Please verify your email.',
           verificationCode: response.data?.verification_code,
-          user: response.data?.user
+          user: response.data?.user,
         };
       }
 
       return { success: false, error: response.error || 'Signup failed' };
-
     } catch (error) {
       console.error('Signup error:', error);
       return { success: false, error: error.message || 'Signup failed' };
@@ -292,7 +295,7 @@ const AuthManager = (function() {
 
       const response = await self.ApiClient.post('/verify-email', {
         email: email,
-        code: code
+        code: code,
       });
 
       if (response.success) {
@@ -304,7 +307,6 @@ const AuthManager = (function() {
       }
 
       return { success: false, error: response.error || 'Verification failed' };
-
     } catch (error) {
       console.error('Verification error:', error);
       return { success: false, error: error.message || 'Verification failed' };
@@ -321,7 +323,7 @@ const AuthManager = (function() {
       }
 
       const response = await self.ApiClient.post('/resend-verification', {
-        email
+        email,
       });
 
       if (response.success) {
@@ -333,7 +335,6 @@ const AuthManager = (function() {
       }
 
       return { success: false, error: response.error || 'Failed to resend code' };
-
     } catch (error) {
       console.error('Resend verification error:', error);
       return { success: false, error: error.message || 'Failed to resend code' };
@@ -362,7 +363,6 @@ const AuthManager = (function() {
       }
 
       return { success: true };
-
     } catch (error) {
       console.error('Logout error:', error);
       // Still clear local auth even if API call fails
@@ -379,8 +379,8 @@ const AuthManager = (function() {
       accessToken: tokenData.AccessToken,
       idToken: tokenData.IdToken,
       refreshToken: tokenData.RefreshToken,
-      tokenExpiry: Date.now() + (tokenData.ExpiresIn * 1000),
-      userData: decodeIdToken(tokenData.IdToken)
+      tokenExpiry: Date.now() + tokenData.ExpiresIn * 1000,
+      userData: decodeIdToken(tokenData.IdToken),
     });
   }
 
@@ -391,7 +391,7 @@ const AuthManager = (function() {
     authState = {
       isAuthenticated: false,
       user: null,
-      tokens: null
+      tokens: null,
     };
 
     await storage.remove(['accessToken', 'idToken', 'refreshToken', 'tokenExpiry', 'userData']);
@@ -449,7 +449,7 @@ const AuthManager = (function() {
   function getAuthState() {
     return {
       isAuthenticated: authState.isAuthenticated,
-      user: authState.user
+      user: authState.user,
     };
   }
 
@@ -466,7 +466,7 @@ const AuthManager = (function() {
     getCurrentUser,
     isAuthenticated,
     getAccessToken,
-    getAuthState
+    getAuthState,
   };
 })();
 
