@@ -7,6 +7,9 @@
 const SyncManager = (function () {
   'use strict';
 
+  // VERSION MARKER - If you see this in console, new code is loaded!
+  console.warn('🔄 SyncManager VERSION 2.0 - WITH FILTER LOGGING loaded!');
+
   const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
   const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
 
@@ -102,15 +105,31 @@ const SyncManager = (function () {
       ];
 
       const originalCount = pageVisits.length;
+      const filteredOutUrls = [];
+
       pageVisits = pageVisits.filter((visit) => {
         const url = visit.url || visit.visitUrl || '';
-        return !invalidUrlPrefixes.some((prefix) => url.startsWith(prefix));
+        const isInvalid = invalidUrlPrefixes.some((prefix) => url.startsWith(prefix));
+
+        if (isInvalid) {
+          filteredOutUrls.push(url);
+        }
+
+        return !isInvalid;
       });
 
-      if (pageVisits.length < originalCount && IS_DEV_MODE) {
-        console.log(
-          `🧹 Filtered out ${originalCount - pageVisits.length} invalid URLs (extension pages, about: pages, etc.)`
-        );
+      // Log filtered URLs (always, not just in dev mode - this is critical for debugging)
+      if (filteredOutUrls.length > 0) {
+        console.warn(`🧹 Filtered out ${filteredOutUrls.length} invalid URLs before sync:`);
+        // Show first 5 URLs to avoid spam
+        filteredOutUrls.slice(0, 5).forEach((url) => {
+          console.warn(`   ❌ ${url}`);
+        });
+        if (filteredOutUrls.length > 5) {
+          console.warn(`   ... and ${filteredOutUrls.length - 5} more`);
+        }
+      } else if (IS_DEV_MODE && originalCount > 0) {
+        console.log('✅ All URLs are valid (no filtering needed)');
       }
 
       // Check if there's data to sync
@@ -176,8 +195,23 @@ const SyncManager = (function () {
         syncState.lastSyncStatus = 'failed';
         await storage.set({ lastSyncStatus: 'failed' });
 
-        if (IS_DEV_MODE) {
-          console.log('❌ Sync failed:', response.error);
+        // Always log sync failures (not just in dev mode - critical for debugging)
+        console.error('❌ Sync failed:', response.error);
+
+        // Log sample of data that was rejected
+        if (pageVisits.length > 0) {
+          console.error('Sample of rejected page visits:');
+          pageVisits.slice(0, 3).forEach((visit, idx) => {
+            console.error(`  Visit ${idx + 1}:`, {
+              url: visit.url || visit.visitUrl,
+              domain: visit.domain,
+              category: visit.category,
+              visitedAt: visit.visitedAt || visit.visited_at,
+            });
+          });
+          if (pageVisits.length > 3) {
+            console.error(`  ... and ${pageVisits.length - 3} more visits`);
+          }
         }
 
         syncState.isSyncing = false;
@@ -187,7 +221,13 @@ const SyncManager = (function () {
         };
       }
     } catch (error) {
-      console.error('Sync error:', error);
+      console.error('❌ Sync exception:', error);
+      console.error('Error details:', {
+        message: error.message,
+        name: error.name,
+        stack: error.stack,
+      });
+
       syncState.lastSyncStatus = 'error';
       syncState.isSyncing = false;
       await storage.set({ lastSyncStatus: 'error' });
