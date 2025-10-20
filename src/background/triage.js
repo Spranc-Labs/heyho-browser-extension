@@ -11,22 +11,30 @@
  * @returns {boolean} - true if event should be stored, false if it should be discarded
  */
 function shouldStoreEvent(eventObject) {
-  // Rule 1: Filter Uninteresting Domains
-  const blockedDomains = [
-    'newtab',
+  // Rule 1: Filter Uninteresting URLs
+  const blockedUrlPatterns = [
     'about:newtab',
     'about:blank',
-    'chrome-extension',
-    'moz-extension',
+    'chrome-extension://',
+    'moz-extension://',
+    'chrome://',
+    'edge://',
+    'view-source:',
   ];
 
-  const domain = eventObject.domain;
+  const url = eventObject.url || '';
+  const domain = eventObject.domain || '';
 
-  // Check if domain matches any blocked patterns
-  for (const blockedDomain of blockedDomains) {
-    if (domain && domain.includes(blockedDomain)) {
+  // Check if URL matches any blocked patterns
+  for (const pattern of blockedUrlPatterns) {
+    if (url.startsWith(pattern)) {
       return false;
     }
+  }
+
+  // Check if domain is 'newtab' (special case)
+  if (domain && domain.includes('newtab')) {
+    return false;
   }
 
   // Rule 2: Filter Events Without a URL/Domain
