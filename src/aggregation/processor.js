@@ -228,13 +228,19 @@ class EventProcessor {
         this.batch.addPageVisit(completedVisit);
       }
 
-      // Create new active visit
+      // Get metadata for this tab
+      const metadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tabId) : {};
+      const title = self.MetadataHandler ? self.MetadataHandler.getTitle(tabId) : '';
+
+      // Create new active visit with metadata
       const newVisit = self.PageVisit.createFromEvent(
         tabId,
         url,
         domain,
         timestamp,
-        event.anonymousClientId || null
+        event.anonymousClientId || null,
+        title,
+        metadata
       );
       // Store the full visit object data
       this.batch.activeVisit = {
