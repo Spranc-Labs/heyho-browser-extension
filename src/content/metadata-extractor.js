@@ -63,30 +63,9 @@ function extractSchemaType() {
     const scripts = document.querySelectorAll('script[type="application/ld+json"]');
 
     for (const script of scripts) {
-      try {
-        const data = JSON.parse(script.textContent);
-
-        // Handle single object
-        if (data['@type']) {
-          return data['@type'];
-        }
-
-        // Handle array of objects (take first)
-        if (Array.isArray(data) && data[0] && data[0]['@type']) {
-          return data[0]['@type'];
-        }
-
-        // Handle nested @graph structure
-        if (data['@graph'] && Array.isArray(data['@graph'])) {
-          for (const item of data['@graph']) {
-            if (item['@type']) {
-              return item['@type'];
-            }
-          }
-        }
-      } catch (e) {
-        // Invalid JSON, skip
-        continue;
+      const schemaType = extractTypeFromScript(script);
+      if (schemaType) {
+        return schemaType;
       }
     }
 
@@ -94,6 +73,51 @@ function extractSchemaType() {
   } catch (error) {
     return null;
   }
+}
+
+/**
+ * Extract @type from a single JSON-LD script element
+ * @param {HTMLScriptElement} script - Script element to parse
+ * @returns {string|null} Schema type or null
+ */
+function extractTypeFromScript(script) {
+  try {
+    const data = JSON.parse(script.textContent);
+
+    // Handle single object
+    if (data['@type']) {
+      return data['@type'];
+    }
+
+    // Handle array of objects (take first)
+    if (Array.isArray(data) && data[0]?.['@type']) {
+      return data[0]['@type'];
+    }
+
+    // Handle nested @graph structure
+    if (data['@graph'] && Array.isArray(data['@graph'])) {
+      return extractTypeFromGraph(data['@graph']);
+    }
+
+    return null;
+  } catch (e) {
+    // Invalid JSON, skip
+    return null;
+  }
+}
+
+/**
+ * Extract @type from @graph array
+ * @param {Array} graph - Schema.org @graph array
+ * @returns {string|null} Schema type or null
+ */
+function extractTypeFromGraph(graph) {
+  for (const item of graph) {
+    if (item['@type']) {
+      return item['@type'];
+    }
+  }
+  return null;
 }
 
 /**
@@ -209,40 +233,68 @@ function estimateWordCount() {
 function extractPreviewMetadata() {
   try {
     return {
-      // Title (prioritize og:title, fallback to document.title)
-      title: getMeta('property', 'og:title') || document.title || '',
-
-      // Description (multiple fallbacks)
-      description:
-        getMeta('property', 'og:description') ||
-        getMeta('name', 'twitter:description') ||
-        getMeta('name', 'description') ||
-        extractFirstParagraph(),
-
-      // Preview image (multiple sources)
-      image:
-        getMeta('property', 'og:image') ||
-        getMeta('name', 'twitter:image') ||
-        extractSchemaImage() ||
-        null,
-
-      // Site branding
-      siteName: getMeta('property', 'og:site_name') || extractSiteNameFromDomain() || '',
-
-      // Favicon
+      title: extractPreviewTitle(),
+      description: extractPreviewDescription(),
+      image: extractPreviewImage(),
+      siteName: extractPreviewSiteName(),
       favicon: extractFavicon(),
-
-      // Additional metadata
-      author: getMeta('name', 'author') || getMeta('property', 'article:author') || null,
-
+      author: extractPreviewAuthor(),
       publishedDate: getMeta('property', 'article:published_time') || null,
-
-      // Canonical URL
       canonicalUrl: document.querySelector('link[rel="canonical"]')?.href || null,
     };
   } catch (error) {
     return {};
   }
+}
+
+/**
+ * Extract preview title with fallbacks
+ * @returns {string} Preview title
+ */
+function extractPreviewTitle() {
+  return getMeta('property', 'og:title') || document.title || '';
+}
+
+/**
+ * Extract preview description with fallbacks
+ * @returns {string} Preview description
+ */
+function extractPreviewDescription() {
+  return (
+    getMeta('property', 'og:description') ||
+    getMeta('name', 'twitter:description') ||
+    getMeta('name', 'description') ||
+    extractFirstParagraph()
+  );
+}
+
+/**
+ * Extract preview image with fallbacks
+ * @returns {string|null} Preview image URL
+ */
+function extractPreviewImage() {
+  return (
+    getMeta('property', 'og:image') ||
+    getMeta('name', 'twitter:image') ||
+    extractSchemaImage() ||
+    null
+  );
+}
+
+/**
+ * Extract site name with fallbacks
+ * @returns {string} Site name
+ */
+function extractPreviewSiteName() {
+  return getMeta('property', 'og:site_name') || extractSiteNameFromDomain() || '';
+}
+
+/**
+ * Extract author with fallbacks
+ * @returns {string|null} Author name
+ */
+function extractPreviewAuthor() {
+  return getMeta('name', 'author') || getMeta('property', 'article:author') || null;
 }
 
 /**
