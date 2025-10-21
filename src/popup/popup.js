@@ -8,8 +8,22 @@ class DebugPanel {
   constructor() {
     this.logContainer = document.getElementById('log-container');
     this.maxLogEntries = 50;
+    this.logSaveTimeout = null;
+    // Create debounced version of saveActivityLog (500ms delay)
+    this.debouncedSaveActivityLog = this.debounce(this.saveActivityLog.bind(this), 500);
     this.setupEventListeners();
     this.initialize();
+  }
+
+  /**
+   * Debounce utility function
+   * Delays execution until after wait milliseconds have elapsed since last call
+   */
+  debounce(func, wait) {
+    return (...args) => {
+      clearTimeout(this.logSaveTimeout);
+      this.logSaveTimeout = setTimeout(() => func.apply(this, args), wait);
+    };
   }
 
   /**
@@ -544,8 +558,8 @@ class DebugPanel {
       this.logContainer.removeChild(this.logContainer.firstChild);
     }
 
-    // Persist log to storage
-    this.saveActivityLog();
+    // Persist log to storage (debounced to avoid excessive writes)
+    this.debouncedSaveActivityLog();
   }
 
   /**
