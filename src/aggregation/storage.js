@@ -190,6 +190,23 @@ class AggregationStorage {
         console.log(`Saving ${batch.pageVisits.length} new page visits...`);
         const existingVisits = await this.getPageVisits();
         const newVisitsJSON = batch.pageVisits.map((v) => v.toJSON());
+
+        // DEBUG: Log first visit to see what's being saved
+        if (newVisitsJSON.length > 0) {
+          console.log('🔍 DEBUG - First visit being saved:', {
+            url: newVisitsJSON[0].url?.substring(0, 60),
+            category: newVisitsJSON[0].category,
+            categoryConfidence: newVisitsJSON[0].categoryConfidence,
+            categoryMethod: newVisitsJSON[0].categoryMethod,
+            hasMetadata:
+              !!newVisitsJSON[0].metadata && Object.keys(newVisitsJSON[0].metadata).length > 0,
+            metadataKeys: newVisitsJSON[0].metadata
+              ? Object.keys(newVisitsJSON[0].metadata).slice(0, 5)
+              : [],
+            title: newVisitsJSON[0].title?.substring(0, 40),
+          });
+        }
+
         const allVisits = [...existingVisits, ...newVisitsJSON];
         promises.push(this.savePageVisits(allVisits));
         console.log(`Total page visits after save: ${allVisits.length}`);

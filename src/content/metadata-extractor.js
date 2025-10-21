@@ -11,7 +11,7 @@
  */
 function extractPageMetadata() {
   try {
-    return {
+    const metadata = {
       // Schema.org structured data
       schemaType: extractSchemaType(),
       schemaData: extractSchemaData(),
@@ -48,6 +48,20 @@ function extractPageMetadata() {
       // Preview metadata for link resurfacing
       preview: extractPreviewMetadata(),
     };
+
+    // Debug logging for development
+    if (window.location.hostname !== 'localhost') {
+      console.log('[MetadataExtractor] Extracted:', {
+        url: window.location.href,
+        schemaType: metadata.schemaType,
+        ogType: metadata.ogType,
+        hasDescription: !!metadata.description,
+        hasKeywords: !!metadata.keywords,
+        totalFields: Object.keys(metadata).length,
+      });
+    }
+
+    return metadata;
   } catch (error) {
     console.warn('[HeyHo] Metadata extraction failed:', error);
     return {}; // Return empty object on error
