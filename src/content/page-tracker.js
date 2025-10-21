@@ -29,8 +29,9 @@ let extractionTimeout = null;
 
 /**
  * Extract and send page metadata to background script
+ * @param {number} retryCount - Current retry attempt (for recursive retry logic)
  */
-function trackPageMetadata() {
+function trackPageMetadata(retryCount = 0) {
   try {
     // Don't track on extension pages or special URLs
     if (
@@ -45,14 +46,50 @@ function trackPageMetadata() {
     // Extract metadata using MetadataExtractor
     const metadata = self.MetadataExtractor ? self.MetadataExtractor.extractPageMetadata() : {};
 
-    // Send to background script
+    // Validate that we got meaningful metadata
+    const hasMetadata =
+      metadata &&
+      (metadata.schemaType ||
+        metadata.ogType ||
+        metadata.hasVideo ||
+        metadata.hasCodeEditor ||
+        metadata.hasFeed ||
+        (metadata.wordCount && metadata.wordCount > 100));
+
+    // If no metadata and we haven't retried yet, wait and try again
+    // (some sites load metadata dynamically)
+    if (!hasMetadata && retryCount < 2) {
+      const retryDelay = retryCount === 0 ? 2000 : 4000; // 2s, then 4s
+      setTimeout(() => trackPageMetadata(retryCount + 1), retryDelay);
+      return;
+    }
+
+    // Log extraction result (helps debugging)
+    if (console && console.log) {
+      if (hasMetadata) {
+        console.log('[HeyHo] ✅ Metadata extracted:', {
+          url: window.location.href.substring(0, 60),
+          schemaType: metadata.schemaType,
+          ogType: metadata.ogType,
+          wordCount: metadata.wordCount,
+          retries: retryCount,
+        });
+      } else {
+        console.warn(
+          '[HeyHo] ⚠️ No rich metadata found for:',
+          window.location.href.substring(0, 60)
+        );
+      }
+    }
+
+    // Send to background script (even if empty - we tried our best)
     if (typeof chrome !== 'undefined' && chrome.runtime) {
       chrome.runtime
         .sendMessage({
           type: 'PAGE_METADATA_EXTRACTED',
           data: {
             url: window.location.href,
-            title: document.title,
+            title: document.title || '',
             metadata: metadata,
           },
         })
