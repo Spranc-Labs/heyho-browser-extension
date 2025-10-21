@@ -18,6 +18,7 @@ function setupDebugMessageHandlers() {
       'exportAllData',
       'runMigration',
       'checkModules',
+      'clearOldData',
     ];
 
     if (!request.action || !debugActions.includes(request.action)) {
@@ -63,6 +64,10 @@ async function handleDebugMessage(request, sender, sendResponse) {
         await handleCheckModules(sendResponse);
         break;
 
+      case 'clearOldData':
+        await handleClearOldData(sendResponse);
+        break;
+
       default:
         // This should never happen since we filter actions in the listener
         console.error('Unexpected debug action:', request.action);
@@ -79,29 +84,48 @@ async function handleDebugMessage(request, sender, sendResponse) {
  */
 async function handleGetDebugStats(sendResponse) {
   try {
-    const { getAllEvents } = self.StorageModule;
+    const { getAllEvents, getSyncedPageVisitsCount } = self.StorageModule;
 
     // Get raw events from IndexedDB
     const rawEvents = await getAllEvents();
 
     // Get aggregated data from browser.storage.local
     const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
-    const [pageVisitsResult, tabAggregatesResult, lastAggregationResult] = await Promise.all([
+    const [
+      pageVisitsResult,
+      tabAggregatesResult,
+      lastAggregationResult,
+      totalSyncedPageVisitsResult,
+      totalSyncedTabAggregatesResult,
+    ] = await Promise.all([
       storage.get('pageVisits'),
       storage.get('tabAggregates'),
       storage.get('lastAggregationTime'),
+      storage.get('totalSyncedPageVisits'),
+      storage.get('totalSyncedTabAggregates'),
     ]);
 
     const pageVisits = pageVisitsResult.pageVisits || [];
     const tabAggregates = tabAggregatesResult.tabAggregates || [];
+    const totalSyncedPageVisits = totalSyncedPageVisitsResult.totalSyncedPageVisits || 0;
+    const totalSyncedTabAggregates = totalSyncedTabAggregatesResult.totalSyncedTabAggregates || 0;
+
+    // Get synced page visits count from IndexedDB
+    const syncedCount = await getSyncedPageVisitsCount();
+
     const lastAggregation = lastAggregationResult.lastAggregationTime
       ? new Date(lastAggregationResult.lastAggregationTime).toLocaleString()
       : 'Never';
 
     const stats = {
       eventsCount: rawEvents.length,
-      visitsCount: pageVisits.length,
-      tabsCount: tabAggregates.length,
+      visitsCount: totalSyncedPageVisits + pageVisits.length, // Total = synced + pending
+      tabsCount: totalSyncedTabAggregates + tabAggregates.length, // Total = synced + pending
+      pendingVisits: pageVisits.length,
+      pendingTabs: tabAggregates.length,
+      totalSyncedPageVisits,
+      totalSyncedTabAggregates,
+      syncedPageVisitsInDB: syncedCount,
       lastAggregation,
     };
 
@@ -326,6 +350,36 @@ async function getAllTabAggregates() {
   } catch (error) {
     console.error('❌ DEBUG: Error getting tab aggregates:', error);
     throw new Error(`Failed to get tab aggregates: ${error.message}`);
+  }
+}
+
+/**
+ * Clear old aggregated data (for testing metadata fixes)
+ */
+async function handleClearOldData(sendResponse) {
+  try {
+    console.log('🧹 Clearing old aggregated data...');
+
+    const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
+
+    // Clear aggregated page visits and tab aggregates
+    await storage.remove(['pageVisits', 'tabAggregates']);
+
+    // Also clear events from IndexedDB for a fresh start
+    if (self.StorageModule && self.StorageModule.clearEvents) {
+      await self.StorageModule.clearEvents();
+    }
+
+    console.log('✅ Old data cleared! New browsing will use metadata fixes.');
+    console.log('💡 Browse some pages and trigger aggregation to test.');
+
+    sendResponse({
+      success: true,
+      message: 'Old data cleared successfully. Browse new pages to test metadata extraction.',
+    });
+  } catch (error) {
+    console.error('❌ Failed to clear old data:', error);
+    sendResponse({ success: false, error: error.message });
   }
 }
 
