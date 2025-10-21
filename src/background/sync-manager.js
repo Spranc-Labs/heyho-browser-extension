@@ -92,21 +92,48 @@ const SyncManager = (function () {
       syncState.lastSyncTime = Date.now();
     }
 
+    // Get current cumulative totals from storage
+    const result = await storage.get(['totalSyncedPageVisits', 'totalSyncedTabAggregates']);
+    const totalSyncedPageVisits = (result.totalSyncedPageVisits || 0) + pageVisits.length;
+    const totalSyncedTabAggregates = (result.totalSyncedTabAggregates || 0) + tabAggregates.length;
+
+    // Store synced page visits in IndexedDB for persistence
+    if (self.StorageModule && pageVisits.length > 0) {
+      if (IS_DEV_MODE) {
+        console.log(`💾 Storing ${pageVisits.length} synced visits in IndexedDB...`);
+      }
+      for (const visit of pageVisits) {
+        try {
+          await self.StorageModule.addSyncedPageVisit(visit);
+        } catch (error) {
+          console.error('Failed to store synced visit:', error);
+        }
+      }
+    }
+
+    // Save sync state and cumulative counters
     await storage.set({
       lastSyncTime: syncState.lastSyncTime,
       lastSyncStatus: syncState.lastSyncStatus,
       pageVisits: [],
       tabAggregates: [],
+      totalSyncedPageVisits,
+      totalSyncedTabAggregates,
     });
 
     if (IS_DEV_MODE) {
       console.log('✅ Data synced successfully:', responseData);
+      console.log(
+        `📊 Cumulative totals: ${totalSyncedPageVisits} page visits, ${totalSyncedTabAggregates} tab aggregates`
+      );
     }
 
     return {
       success: true,
       message: 'Data synced successfully',
       synced: pageVisits.length + tabAggregates.length,
+      totalSyncedPageVisits,
+      totalSyncedTabAggregates,
       data: responseData,
     };
   }
@@ -181,11 +208,14 @@ const SyncManager = (function () {
       }
 
       // Trigger aggregation before sync to ensure all events are processed
-      if (self.AggregatorModule && self.AggregatorModule.processEvents) {
+      if (self.aggregator && self.aggregator.processEvents) {
         if (IS_DEV_MODE) {
           console.log('⚙️ Running aggregation before sync...');
         }
-        await self.AggregatorModule.processEvents();
+        await self.aggregator.processEvents();
+        if (IS_DEV_MODE) {
+          console.log('⚙️ Aggregation completed before sync');
+        }
       }
 
       // Get anonymous client ID
@@ -297,6 +327,12 @@ const SyncManager = (function () {
         periodInMinutes: 5,
       });
 
+      // Create alarm for daily cleanup of old synced visits (runs at 3 AM daily)
+      await chrome.alarms.create('cleanup-synced-visits', {
+        when: getNext3AM(),
+        periodInMinutes: 24 * 60, // 24 hours
+      });
+
       // Create and store listener reference
       syncAlarmListener = async (alarm) => {
         if (alarm.name === 'data-sync') {
@@ -310,6 +346,11 @@ const SyncManager = (function () {
           } else if (IS_DEV_MODE) {
             console.log('⏭️ Skipping scheduled sync - not authenticated');
           }
+        } else if (alarm.name === 'cleanup-synced-visits') {
+          if (IS_DEV_MODE) {
+            console.log('⏰ Cleanup alarm triggered');
+          }
+          await performCleanup();
         }
       };
 
@@ -318,9 +359,53 @@ const SyncManager = (function () {
 
       if (IS_DEV_MODE) {
         console.log('✅ Data sync alarm configured (every 5 minutes)');
+        console.log('✅ Cleanup alarm configured (daily at 3 AM)');
       }
     } catch (error) {
       console.error('Failed to setup sync alarm:', error);
+    }
+  }
+
+  /**
+   * Calculate timestamp for next 3 AM
+   * @returns {number} Timestamp in milliseconds
+   * @private
+   */
+  function getNext3AM() {
+    const now = new Date();
+    const next3AM = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      3, // 3 AM
+      0,
+      0,
+      0
+    );
+
+    // If it's already past 3 AM today, schedule for tomorrow
+    if (now.getHours() >= 3) {
+      next3AM.setDate(next3AM.getDate() + 1);
+    }
+
+    return next3AM.getTime();
+  }
+
+  /**
+   * Perform cleanup of old synced visits
+   * @returns {Promise<void>}
+   * @private
+   */
+  async function performCleanup() {
+    try {
+      if (self.StorageModule && self.StorageModule.cleanupOldSyncedVisits) {
+        const deletedCount = await self.StorageModule.cleanupOldSyncedVisits(30); // Keep last 30 days
+        if (IS_DEV_MODE) {
+          console.log(`🧹 Cleanup completed: ${deletedCount} old visits removed`);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to perform cleanup:', error);
     }
   }
 

@@ -588,6 +588,52 @@ async function getSyncedPageVisitsCount() {
 }
 
 /**
+ * Clean up old synced page visits to prevent database growth
+ * Keeps only visits from the last N days
+ * @param {number} maxAgeDays - Maximum age in days to keep (default: 30)
+ * @returns {Promise<number>} - Number of visits deleted
+ */
+async function cleanupOldSyncedVisits(maxAgeDays = 30) {
+  try {
+    const db = await initDB();
+    const cutoffTime = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SYNCED_PAGE_VISITS_STORE], 'readwrite');
+      const store = transaction.objectStore(SYNCED_PAGE_VISITS_STORE);
+      const index = store.index('syncedAt_idx');
+      const range = IDBKeyRange.upperBound(cutoffTime);
+
+      let deletedCount = 0;
+      const request = index.openCursor(range);
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          cursor.delete();
+          deletedCount++;
+          cursor.continue();
+        } else {
+          if (deletedCount > 0) {
+            console.log(
+              `🧹 Cleaned up ${deletedCount} synced visits older than ${maxAgeDays} days`
+            );
+          }
+          resolve(deletedCount);
+        }
+      };
+
+      request.onerror = () =>
+        reject(new Error(`Failed to cleanup synced visits: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    console.error('Failed to cleanup old synced visits:', error);
+    return 0;
+  }
+}
+
+/**
  * Reset the cached database instance (for testing purposes)
  * @private
  */
@@ -630,6 +676,7 @@ if (typeof module !== 'undefined' && module.exports) {
     addSyncedPageVisit,
     getSyncedPageVisits,
     getSyncedPageVisitsCount,
+    cleanupOldSyncedVisits,
     EVENTS_STORE,
     PAGE_VISITS_STORE,
     TAB_AGGREGATES_STORE,
