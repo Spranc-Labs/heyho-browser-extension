@@ -7,10 +7,11 @@
  */
 
 const DB_NAME = 'Heyho_EventsDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const EVENTS_STORE = 'events';
 const PAGE_VISITS_STORE = 'pageVisits';
 const TAB_AGGREGATES_STORE = 'tabAggregates';
+const SYNCED_PAGE_VISITS_STORE = 'syncedPageVisits';
 
 let dbInstance = null;
 
@@ -72,6 +73,20 @@ function initDB() {
         }
 
         console.log('IndexedDB v3: Added category index to pageVisits store');
+      }
+
+      // Version 4: Add synced page visits store for persistence
+      if (oldVersion < 4) {
+        const syncedVisitsStore = db.createObjectStore(SYNCED_PAGE_VISITS_STORE, {
+          keyPath: 'id',
+          autoIncrement: true,
+        });
+        syncedVisitsStore.createIndex('visitId_idx', 'visitId', { unique: false });
+        syncedVisitsStore.createIndex('syncedAt_idx', 'syncedAt', { unique: false });
+        syncedVisitsStore.createIndex('domain_idx', 'domain', { unique: false });
+        syncedVisitsStore.createIndex('category_idx', 'category', { unique: false });
+
+        console.log('IndexedDB v4: Added synced page visits store');
       }
 
       console.log('IndexedDB setup complete: created all stores with indexes');
@@ -274,6 +289,70 @@ async function clearEvents() {
 }
 
 /**
+ * Update recent events for a tab with metadata
+ * This retroactively adds metadata to events created before metadata extraction completed
+ * @param {number} tabId - Tab ID to update events for
+ * @param {Object} metadata - Page metadata object
+ * @param {string} title - Page title
+ * @param {number} maxAgeSeconds - Maximum age of events to update (default: 5 seconds)
+ * @returns {Promise<number>} - Number of events updated
+ */
+async function updateRecentEventsMetadata(tabId, metadata, title, maxAgeSeconds = 5) {
+  try {
+    const db = await initDB();
+    const cutoffTime = Date.now() - maxAgeSeconds * 1000;
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([EVENTS_STORE], 'readwrite');
+      const store = transaction.objectStore(EVENTS_STORE);
+
+      let updatedCount = 0;
+      const request = store.openCursor();
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          const eventObj = cursor.value;
+
+          // Only update events for this tab that are recent and don't already have metadata
+          if (
+            eventObj.tabId === tabId &&
+            eventObj.timestamp >= cutoffTime &&
+            !eventObj.pageMetadata
+          ) {
+            // Update the event with metadata
+            eventObj.pageMetadata = metadata;
+            if (title) {
+              eventObj.pageTitle = title;
+            }
+
+            const updateRequest = cursor.update(eventObj);
+            updateRequest.onsuccess = () => {
+              updatedCount++;
+            };
+          }
+
+          cursor.continue();
+        } else {
+          resolve(updatedCount);
+        }
+      };
+
+      request.onerror = () => {
+        reject(new Error(`Failed to update events metadata: ${request.error}`));
+      };
+
+      transaction.onerror = () => {
+        reject(new Error(`Transaction failed: ${transaction.error}`));
+      };
+    });
+  } catch (error) {
+    console.error('Failed to update events metadata:', error);
+    return 0;
+  }
+}
+
+/**
  * Gets all events from the events store, sorted by timestamp
  * @returns {Promise<Array>} - Array of all events
  */
@@ -421,6 +500,94 @@ async function getTabAggregatesCount() {
 }
 
 /**
+ * Add a synced page visit to IndexedDB for persistence
+ * @param {Object} visit - Page visit object
+ * @returns {Promise<void>}
+ */
+async function addSyncedPageVisit(visit) {
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SYNCED_PAGE_VISITS_STORE], 'readwrite');
+      const store = transaction.objectStore(SYNCED_PAGE_VISITS_STORE);
+
+      const syncedVisit = {
+        ...visit,
+        syncedAt: Date.now(),
+      };
+
+      const request = store.add(syncedVisit);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error(`Failed to add synced visit: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to store synced page visit: ${error.message}`);
+  }
+}
+
+/**
+ * Get all synced page visits
+ * @param {Object} options - Query options
+ * @param {number} options.limit - Maximum number of visits to return
+ * @returns {Promise<Array>} - Array of synced page visits
+ */
+async function getSyncedPageVisits(options = {}) {
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SYNCED_PAGE_VISITS_STORE], 'readonly');
+      const store = transaction.objectStore(SYNCED_PAGE_VISITS_STORE);
+      const index = store.index('syncedAt_idx');
+
+      // Get in reverse chronological order
+      const request = index.openCursor(null, 'prev');
+      const results = [];
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor && (!options.limit || results.length < options.limit)) {
+          results.push(cursor.value);
+          cursor.continue();
+        } else {
+          resolve(results);
+        }
+      };
+
+      request.onerror = () => reject(new Error(`Failed to get synced visits: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get synced page visits: ${error.message}`);
+  }
+}
+
+/**
+ * Get count of synced page visits
+ * @returns {Promise<number>} - Number of synced page visits
+ */
+async function getSyncedPageVisitsCount() {
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([SYNCED_PAGE_VISITS_STORE], 'readonly');
+      const store = transaction.objectStore(SYNCED_PAGE_VISITS_STORE);
+      const request = store.count();
+
+      request.onsuccess = () => resolve(request.result || 0);
+      request.onerror = () => reject(new Error(`Failed to count synced visits: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get synced visits count: ${error.message}`);
+  }
+}
+
+/**
  * Reset the cached database instance (for testing purposes)
  * @private
  */
@@ -451,6 +618,7 @@ if (typeof module !== 'undefined' && module.exports) {
   self.StorageModule = {
     initDB,
     addEvent,
+    updateRecentEventsMetadata,
     getExpiredEvents,
     deleteEvents,
     clearEvents,
@@ -459,9 +627,13 @@ if (typeof module !== 'undefined' && module.exports) {
     getPageVisitsCount,
     getTabAggregatesCount,
     getTabAggregatesForProcessing,
+    addSyncedPageVisit,
+    getSyncedPageVisits,
+    getSyncedPageVisitsCount,
     EVENTS_STORE,
     PAGE_VISITS_STORE,
     TAB_AGGREGATES_STORE,
+    SYNCED_PAGE_VISITS_STORE,
     __resetInstance,
   };
 }
