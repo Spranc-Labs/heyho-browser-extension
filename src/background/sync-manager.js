@@ -200,8 +200,8 @@ const SyncManager = (function () {
       // Filter out invalid URLs
       const { validVisits, filteredUrls } = filterInvalidUrls(result.pageVisits || []);
 
-      // Log filtered URLs if any
-      if (filteredUrls.length > 0) {
+      // Log filtered URLs if any (dev mode only)
+      if (IS_DEV_MODE && filteredUrls.length > 0) {
         console.warn(`🧹 Filtered out ${filteredUrls.length} invalid URLs before sync:`);
         filteredUrls.slice(0, 5).forEach((url) => {
           console.warn(`   ❌ ${url}`);

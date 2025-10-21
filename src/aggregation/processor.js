@@ -13,8 +13,12 @@ class EventProcessor {
    * Process all pending events
    */
   async processAllEvents() {
+    const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
+
     try {
-      console.log('Starting event processing...');
+      if (IS_DEV_MODE) {
+        console.log('Starting event processing...');
+      }
 
       // Load data
       const [events, activeVisit, tabAggregates] = await Promise.all([
@@ -24,11 +28,15 @@ class EventProcessor {
       ]);
 
       if (events.length === 0) {
-        console.log('No events to process');
+        if (IS_DEV_MODE) {
+          console.log('No events to process');
+        }
         return { success: true, processed: 0 };
       }
 
-      console.log(`Processing ${events.length} events...`);
+      if (IS_DEV_MODE) {
+        console.log(`Processing ${events.length} events...`);
+      }
 
       // Initialize batch
       this.batch = new self.AggregationBatch(events, activeVisit, tabAggregates);
@@ -39,10 +47,14 @@ class EventProcessor {
 
       for (const event of events) {
         try {
-          console.log(`🔄 Processing event ${event.id} of type ${event.type}...`);
+          if (IS_DEV_MODE) {
+            console.log(`🔄 Processing event ${event.id} of type ${event.type}...`);
+          }
           // eslint-disable-next-line no-await-in-loop -- Sequential processing required
           const result = await this._processEvent(event);
-          console.log(`✅ Event ${event.id} processed:`, result);
+          if (IS_DEV_MODE) {
+            console.log(`✅ Event ${event.id} processed:`, result);
+          }
           this.batch.markEventProcessed(event.id);
           processedCount++;
         } catch (error) {
@@ -57,16 +69,20 @@ class EventProcessor {
         const finalVisit = new self.PageVisit(this.batch.activeVisit);
         finalVisit.complete(Date.now());
         this.batch.addPageVisit(finalVisit);
-        console.log('📝 Completed active visit before saving');
+        if (IS_DEV_MODE) {
+          console.log('📝 Completed active visit before saving');
+        }
       }
 
-      console.log(
-        `📊 Batch processing complete: ${processedCount} processed, ${errorCount} errors`
-      );
-      console.log(
-        `📊 Batch contents: ${this.batch.pageVisits.length} page visits, ` +
-          `${this.batch.tabAggregates.size} tab aggregates`
-      );
+      if (IS_DEV_MODE) {
+        console.log(
+          `📊 Batch processing complete: ${processedCount} processed, ${errorCount} errors`
+        );
+        console.log(
+          `📊 Batch contents: ${this.batch.pageVisits.length} page visits, ` +
+            `${this.batch.tabAggregates.size} tab aggregates`
+        );
+      }
 
       // Save results
       const saved = await this.storage.saveProcessingResults(this.batch);
@@ -74,13 +90,13 @@ class EventProcessor {
       // Clear processed events from IndexedDB if saving was successful
       if (saved && processedCount > 0) {
         await this.storage.clearEvents();
-        console.log(`Cleared ${processedCount} processed events from IndexedDB`);
-
-        // Log aggregation success
-        console.log(
-          `✅ Aggregation completed: ${this.batch.pageVisits.length} page visits, ` +
-            `${this.batch.tabAggregates.size} tab aggregates saved`
-        );
+        if (IS_DEV_MODE) {
+          console.log(`Cleared ${processedCount} processed events from IndexedDB`);
+          console.log(
+            `✅ Aggregation completed: ${this.batch.pageVisits.length} page visits, ` +
+              `${this.batch.tabAggregates.size} tab aggregates saved`
+          );
+        }
       } else if (!saved) {
         console.error('❌ Failed to save aggregation results - events NOT cleared');
       }
@@ -92,7 +108,11 @@ class EventProcessor {
         statistics: this.batch.getStatistics(),
       };
 
-      console.log(`Processing complete: ${processedCount} events processed, ${errorCount} errors`);
+      if (IS_DEV_MODE) {
+        console.log(
+          `Processing complete: ${processedCount} events processed, ${errorCount} errors`
+        );
+      }
 
       // Clear batch
       this.batch = null;
