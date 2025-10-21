@@ -84,9 +84,25 @@ class PageCategorizer {
   static categorize(pageVisit) {
     const { url, domain, title, metadata = {} } = pageVisit;
 
+    const IS_DEV_MODE = self.ConfigModule?.IS_DEV_MODE || false;
+
+    if (IS_DEV_MODE) {
+      console.log('[Categorizer] Analyzing:', {
+        url,
+        domain,
+        title,
+        hasMetadata: !!metadata && Object.keys(metadata).length > 0,
+        schemaType: metadata.schemaType,
+        ogType: metadata.ogType,
+      });
+    }
+
     // Step 1: Try Schema.org type (highest confidence)
     let result = this.categorizeBySchema(metadata, pageVisit);
     if (result && result.confidence >= this.CONFIDENCE_THRESHOLD) {
+      if (IS_DEV_MODE) {
+        console.log('[Categorizer] ✅ Step 1 (Schema):', result);
+      }
       result = this.applyBehavioralAdjustments(result, pageVisit);
       return { ...result, method: 'metadata' };
     }
@@ -94,6 +110,9 @@ class PageCategorizer {
     // Step 2: Try Open Graph + URL patterns
     result = this.categorizeByOpenGraph(metadata, url, domain, title);
     if (result && result.confidence >= this.CONFIDENCE_THRESHOLD) {
+      if (IS_DEV_MODE) {
+        console.log('[Categorizer] ✅ Step 2 (OpenGraph):', result);
+      }
       result = this.applyBehavioralAdjustments(result, pageVisit);
       return { ...result, method: 'metadata' };
     }
@@ -101,6 +120,9 @@ class PageCategorizer {
     // Step 3: Try domain + URL patterns
     result = this.categorizeByDomain(domain, url, metadata, title);
     if (result && result.confidence >= this.CONFIDENCE_THRESHOLD) {
+      if (IS_DEV_MODE) {
+        console.log('[Categorizer] ✅ Step 3 (Domain):', result);
+      }
       result = this.applyBehavioralAdjustments(result, pageVisit);
       return { ...result, method: 'metadata' };
     }
@@ -108,11 +130,22 @@ class PageCategorizer {
     // Step 4: Try content signals
     result = this.categorizeByContent(metadata, pageVisit);
     if (result && result.confidence >= this.CONFIDENCE_THRESHOLD) {
+      if (IS_DEV_MODE) {
+        console.log('[Categorizer] ✅ Step 4 (Content/Keywords):', result);
+      }
       result = this.applyBehavioralAdjustments(result, pageVisit);
       return { ...result, method: 'metadata' };
     }
 
     // Low confidence - mark as unclassified
+    if (IS_DEV_MODE) {
+      console.warn('[Categorizer] ❌ No match - marking as unclassified for:', {
+        domain,
+        title,
+        metadataKeys: Object.keys(metadata),
+      });
+    }
+
     return {
       category: this.CATEGORIES.UNCLASSIFIED,
       confidence: 0,
@@ -318,6 +351,9 @@ class PageCategorizer {
       'discord.com',
       'zoom.us',
       'meet.google.com',
+      'mail.google.com',
+      'outlook.live.com',
+      'outlook.office.com',
     ];
     if (commDomains.some((d) => domain.includes(d))) {
       return { category: this.CATEGORIES.WORK_COMMUNICATION, confidence: 0.9 };
@@ -457,7 +493,7 @@ class PageCategorizer {
   /**
    * Categorize based on page content signals
    */
-  static categorizeByContent(metadata, _pageVisit) {
+  static categorizeByContent(metadata, pageVisit) {
     // Has code editor = work coding
     if (metadata.hasCodeEditor) {
       return { category: this.CATEGORIES.WORK_CODING, confidence: 0.85 };
@@ -466,6 +502,98 @@ class PageCategorizer {
     // Social feed
     if (metadata.hasFeed) {
       return { category: this.CATEGORIES.SOCIAL_MEDIA, confidence: 0.75 };
+    }
+
+    // Keyword-based categorization from text content
+    // Combine all text sources for analysis
+    const textSources = [
+      pageVisit.title,
+      metadata.description,
+      metadata.preview?.siteName,
+      metadata.preview?.description,
+      metadata.applicationName,
+      metadata.keywords,
+    ];
+
+    const text = textSources.filter(Boolean).join(' ').toLowerCase();
+
+    // Skip if no meaningful text content
+    if (text.length < 10) {
+      return null;
+    }
+
+    // Music/Entertainment streaming keywords
+    if (
+      /\b(music|songs|albums?|playlist|artist|streaming|spotify|soundcloud|audio|listen|tracks?)\b/i.test(
+        text
+      )
+    ) {
+      return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.7 };
+    }
+
+    // Video streaming (if hasVideo or video keywords)
+    if (
+      metadata.hasVideo ||
+      /\b(video|watch|stream|episode|movie|series|tv show|cinema)\b/i.test(text)
+    ) {
+      return { category: this.CATEGORIES.ENTERTAINMENT_VIDEO, confidence: 0.7 };
+    }
+
+    // Shopping keywords
+    if (
+      /\b(shop|buy|cart|checkout|price|product|store|purchase|sale|order|marketplace)\b/i.test(text)
+    ) {
+      return { category: this.CATEGORIES.SHOPPING, confidence: 0.7 };
+    }
+
+    // Social media keywords
+    if (
+      /\b(social|friends|followers?|posts?|likes?|shares?|community|profile|feed|timeline)\b/i.test(
+        text
+      )
+    ) {
+      return { category: this.CATEGORIES.SOCIAL_MEDIA, confidence: 0.7 };
+    }
+
+    // News/journalism keywords
+    if (
+      /\b(news|breaking|headlines?|journalism|reporter|article|press|media|current events)\b/i.test(
+        text
+      )
+    ) {
+      return { category: this.CATEGORIES.NEWS, confidence: 0.7 };
+    }
+
+    // Communication/email keywords
+    if (
+      /\b(email|mail|inbox|message|gmail|outlook|compose|reply|send|conversation)\b/i.test(text)
+    ) {
+      return { category: this.CATEGORIES.WORK_COMMUNICATION, confidence: 0.7 };
+    }
+
+    // Work/productivity keywords
+    if (
+      /\b(document|spreadsheet|presentation|editor|collaborate|workspace|office|productivity)\b/i.test(
+        text
+      )
+    ) {
+      return { category: this.CATEGORIES.WORK_DOCUMENTATION, confidence: 0.7 };
+    }
+
+    // Learning/education keywords
+    if (
+      /\b(tutorial|course|learn|education|training|guide|lesson|teach|study|class|university)\b/i.test(
+        text
+      )
+    ) {
+      return { category: this.CATEGORIES.LEARNING_READING, confidence: 0.7 };
+    }
+
+    // Tech documentation keywords
+    if (
+      /\b(documentation|docs|api|reference|developer|programming|code|sdk|library)\b/i.test(text)
+    ) {
+      return { category: this.CATEGORIES.LEARNING_READING, confidence: 0.7 };
     }
 
     return null;

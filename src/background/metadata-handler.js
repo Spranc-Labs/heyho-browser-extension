@@ -45,22 +45,34 @@ const MetadataHandler = (function () {
       return;
     }
 
+    // Validate metadata is not empty
+    const hasMetadata = data.metadata && Object.keys(data.metadata).length > 0;
+
     // Store metadata with timestamp
     metadataCache.set(tab.id, {
       url: data.url,
-      title: data.title,
-      metadata: data.metadata,
+      title: data.title || '',
+      metadata: data.metadata || {},
       timestamp: Date.now(),
     });
 
     if (IS_DEV_MODE) {
-      console.log(`[HeyHo] Cached metadata for tab ${tab.id}:`, {
-        url: data.url,
-        title: data.title,
-        schemaType: data.metadata?.schemaType,
-        ogType: data.metadata?.ogType,
-        category: data.metadata?.category,
-      });
+      if (hasMetadata) {
+        console.log(`[HeyHo] ✅ Cached metadata for tab ${tab.id}:`, {
+          url: data.url?.substring(0, 60),
+          title: data.title?.substring(0, 40),
+          schemaType: data.metadata?.schemaType,
+          ogType: data.metadata?.ogType,
+          hasVideo: data.metadata?.hasVideo,
+          hasCodeEditor: data.metadata?.hasCodeEditor,
+          wordCount: data.metadata?.wordCount,
+        });
+      } else {
+        console.warn(`[HeyHo] ⚠️ Cached empty metadata for tab ${tab.id}:`, {
+          url: data.url?.substring(0, 60),
+          title: data.title?.substring(0, 40),
+        });
+      }
     }
   }
 

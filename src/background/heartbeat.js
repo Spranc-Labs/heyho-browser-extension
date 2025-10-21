@@ -167,15 +167,25 @@ async function generateHeartbeat() {
       self.EventsModule.createCoreEvent &&
       self.EventsModule.logAndSaveEvent
     ) {
+      // Get metadata and title from cache for heartbeat events
+      const pageMetadata = self.MetadataHandler
+        ? self.MetadataHandler.getMetadata(activeTab?.id)
+        : {};
+      const pageTitle = self.MetadataHandler ? self.MetadataHandler.getTitle(activeTab?.id) : '';
+
       const heartbeatEvent = await self.EventsModule.createCoreEvent(
         'HEARTBEAT',
         activeTab?.id || 0,
         activeTab?.url || '',
         {
-          idleState: idleState,
-          audible: activeTab?.audible || false,
-          windowFocused: windowFocused,
-          engagement: calculateEngagement(idleState, activeTab, windowFocused),
+          heartbeatData: {
+            idleState: idleState,
+            audible: activeTab?.audible || false,
+            windowFocused: windowFocused,
+            engagement: calculateEngagement(idleState, activeTab, windowFocused),
+          },
+          pageMetadata,
+          pageTitle,
         }
       );
 

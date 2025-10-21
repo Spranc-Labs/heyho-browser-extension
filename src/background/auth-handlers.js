@@ -52,24 +52,24 @@ const AuthHandlers = (function () {
   /**
    * Handle auth action
    */
-  function handleAuthAction(message, _sender) {
+  async function handleAuthAction(message, _sender) {
     const { action, data } = message;
 
     switch (action) {
       case 'login':
-        return handleLogin(data);
+        return await handleLogin(data);
 
       case 'signup':
-        return handleSignup(data);
+        return await handleSignup(data);
 
       case 'verifyEmail':
-        return handleVerifyEmail(data);
+        return await handleVerifyEmail(data);
 
       case 'resendVerification':
-        return handleResendVerification(data);
+        return await handleResendVerification(data);
 
       case 'logout':
-        return handleLogout();
+        return await handleLogout();
 
       case 'getAuthState':
         return handleGetAuthState();
