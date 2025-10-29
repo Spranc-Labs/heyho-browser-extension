@@ -49,7 +49,15 @@ function setupTabListeners() {
       console.log('🔄 Service worker woke up: Tab created');
     }
     ensureHeartbeat();
-    const eventObject = await createCoreEvent('CREATE', tab.id, tab.url);
+
+    // Get metadata and title from cache
+    const pageMetadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tab.id) : {};
+    const pageTitle = self.MetadataHandler ? self.MetadataHandler.getTitle(tab.id) : '';
+
+    const eventObject = await createCoreEvent('CREATE', tab.id, tab.url, {
+      pageMetadata,
+      pageTitle,
+    });
     logAndSaveEvent(eventObject);
   });
 
@@ -62,7 +70,15 @@ function setupTabListeners() {
     try {
       // Get tab details to retrieve URL
       const tab = await browser.tabs.get(activeInfo.tabId);
-      const eventObject = await createCoreEvent('ACTIVATE', activeInfo.tabId, tab.url);
+
+      // Get metadata and title from cache
+      const pageMetadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tab.id) : {};
+      const pageTitle = self.MetadataHandler ? self.MetadataHandler.getTitle(tab.id) : '';
+
+      const eventObject = await createCoreEvent('ACTIVATE', activeInfo.tabId, tab.url, {
+        pageMetadata,
+        pageTitle,
+      });
       logAndSaveEvent(eventObject);
     } catch (error) {
       // Handle case where tab might be closed before we can get its details
@@ -82,7 +98,15 @@ function setupTabListeners() {
         console.log('🔄 Service worker woke up: Tab navigated');
       }
       ensureHeartbeat();
-      const eventObject = await createCoreEvent('NAVIGATE', tabId, changeInfo.url);
+
+      // Get metadata and title from cache
+      const pageMetadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tabId) : {};
+      const pageTitle = self.MetadataHandler ? self.MetadataHandler.getTitle(tabId) : '';
+
+      const eventObject = await createCoreEvent('NAVIGATE', tabId, changeInfo.url, {
+        pageMetadata,
+        pageTitle,
+      });
       logAndSaveEvent(eventObject);
     }
   });

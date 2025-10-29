@@ -7,8 +7,23 @@
 class DebugPanel {
   constructor() {
     this.logContainer = document.getElementById('log-container');
+    this.maxLogEntries = 50;
+    this.logSaveTimeout = null;
+    // Create debounced version of saveActivityLog (500ms delay)
+    this.debouncedSaveActivityLog = this.debounce(this.saveActivityLog.bind(this), 500);
     this.setupEventListeners();
     this.initialize();
+  }
+
+  /**
+   * Debounce utility function
+   * Delays execution until after wait milliseconds have elapsed since last call
+   */
+  debounce(func, wait) {
+    return (...args) => {
+      clearTimeout(this.logSaveTimeout);
+      this.logSaveTimeout = setTimeout(() => func.apply(this, args), wait);
+    };
   }
 
   /**
@@ -16,6 +31,9 @@ class DebugPanel {
    */
   async initialize() {
     try {
+      // Load persisted activity log first
+      await this.loadActivityLog();
+
       // Wait for background script to be ready
       await this.waitForBackgroundScript();
 
@@ -249,6 +267,10 @@ class DebugPanel {
       this.viewRawEvents();
     });
 
+    document.getElementById('clear-old-data').addEventListener('click', () => {
+      this.clearOldData();
+    });
+
     // Export controls
     document.getElementById('export-page-visits').addEventListener('click', () => {
       this.exportData('pageVisits');
@@ -302,6 +324,37 @@ class DebugPanel {
       }
     } catch (error) {
       console.error('Migration error:', error);
+      this.log(`❌ Error: ${error.message}`, 'error');
+    } finally {
+      button.classList.remove('loading');
+      button.disabled = false;
+    }
+  }
+
+  async clearOldData() {
+    const button = document.getElementById('clear-old-data');
+    button.classList.add('loading');
+    button.disabled = true;
+
+    this.log('🧹 Clearing old aggregated data (for testing metadata fixes)...', 'info');
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'clearOldData',
+      });
+
+      if (response.success) {
+        this.log('✅ Old data cleared successfully!', 'success');
+        this.log(
+          '💡 Browse some pages and trigger aggregation to test metadata extraction.',
+          'info'
+        );
+        this.loadStats(); // Refresh stats
+      } else {
+        this.log(`❌ Clear failed: ${response.error}`, 'error');
+      }
+    } catch (error) {
+      console.error('Clear data error:', error);
       this.log(`❌ Error: ${error.message}`, 'error');
     } finally {
       button.classList.remove('loading');
@@ -448,6 +501,50 @@ class DebugPanel {
     URL.revokeObjectURL(url);
   }
 
+  /**
+   * Load persisted activity log from storage
+   */
+  async loadActivityLog() {
+    try {
+      const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
+      const result = await storage.get('activityLog');
+      const logs = result.activityLog || [];
+
+      // Clear existing logs
+      this.logContainer.innerHTML = '';
+
+      // Restore logs
+      logs.forEach((logData) => {
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${logData.type}`;
+        logEntry.textContent = logData.text;
+        this.logContainer.appendChild(logEntry);
+      });
+
+      // Scroll to bottom
+      this.logContainer.scrollTop = this.logContainer.scrollHeight;
+    } catch (error) {
+      console.error('Failed to load activity log:', error);
+    }
+  }
+
+  /**
+   * Save activity log to storage
+   */
+  async saveActivityLog() {
+    try {
+      const storage = typeof browser !== 'undefined' ? browser.storage.local : chrome.storage.local;
+      const logs = Array.from(this.logContainer.children).map((entry) => ({
+        text: entry.textContent,
+        type: entry.className.replace('log-entry ', ''),
+      }));
+
+      await storage.set({ activityLog: logs });
+    } catch (error) {
+      console.error('Failed to save activity log:', error);
+    }
+  }
+
   log(message, type = 'info') {
     const logEntry = document.createElement('div');
     logEntry.className = `log-entry ${type}`;
@@ -457,9 +554,12 @@ class DebugPanel {
     this.logContainer.scrollTop = this.logContainer.scrollHeight;
 
     // Keep only last 50 log entries
-    while (this.logContainer.children.length > 50) {
+    while (this.logContainer.children.length > this.maxLogEntries) {
       this.logContainer.removeChild(this.logContainer.firstChild);
     }
+
+    // Persist log to storage (debounced to avoid excessive writes)
+    this.debouncedSaveActivityLog();
   }
 
   /**
@@ -546,8 +646,9 @@ class DebugPanel {
           this.log('ℹ️ No new data to sync', 'info');
         }
 
-        // Refresh sync state
+        // Refresh sync state and stats
         await this.loadSyncState();
+        await this.loadStats(); // ADDED: Refresh stats after sync
       } else {
         this.log(`❌ Sync failed: ${response.error}`, 'error');
 

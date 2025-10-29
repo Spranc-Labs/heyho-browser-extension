@@ -20,11 +20,15 @@ class AggregationStorage {
   // Event Management
 
   async getEvents() {
+    const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
+
     try {
       // Get events from IndexedDB instead of chrome.storage.local
       if (self.StorageModule && self.StorageModule.getAllEvents) {
         const events = await self.StorageModule.getAllEvents();
-        console.log(`Retrieved ${events.length} events from IndexedDB for aggregation`);
+        if (IS_DEV_MODE) {
+          console.log(`Retrieved ${events.length} events from IndexedDB for aggregation`);
+        }
         return events;
       }
 
@@ -56,10 +60,14 @@ class AggregationStorage {
   }
 
   async clearEvents() {
+    const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
+
     try {
       // Clear events from IndexedDB after processing
       if (self.StorageModule && self.StorageModule.clearEvents) {
-        console.log('Clearing processed events from IndexedDB');
+        if (IS_DEV_MODE) {
+          console.log('Clearing processed events from IndexedDB');
+        }
         return await self.StorageModule.clearEvents();
       }
 
@@ -177,27 +185,54 @@ class AggregationStorage {
   // Batch Operations
 
   async saveProcessingResults(batch) {
+    const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
+
     try {
-      console.log(
-        `💾 Saving aggregation results: ${batch.pageVisits.length} visits, ` +
-          `${batch.tabAggregates.size} aggregates`
-      );
+      if (IS_DEV_MODE) {
+        console.log(
+          `💾 Saving aggregation results: ${batch.pageVisits.length} visits, ` +
+            `${batch.tabAggregates.size} aggregates`
+        );
+      }
 
       const promises = [];
 
       // Save page visits
       if (batch.pageVisits.length > 0) {
-        console.log(`Saving ${batch.pageVisits.length} new page visits...`);
+        if (IS_DEV_MODE) {
+          console.log(`Saving ${batch.pageVisits.length} new page visits...`);
+        }
         const existingVisits = await this.getPageVisits();
         const newVisitsJSON = batch.pageVisits.map((v) => v.toJSON());
+
+        // DEBUG: Log first visit to see what's being saved
+        if (IS_DEV_MODE && newVisitsJSON.length > 0) {
+          console.log('🔍 DEBUG - First visit being saved:', {
+            url: newVisitsJSON[0].url?.substring(0, 60),
+            category: newVisitsJSON[0].category,
+            categoryConfidence: newVisitsJSON[0].categoryConfidence,
+            categoryMethod: newVisitsJSON[0].categoryMethod,
+            hasMetadata:
+              !!newVisitsJSON[0].metadata && Object.keys(newVisitsJSON[0].metadata).length > 0,
+            metadataKeys: newVisitsJSON[0].metadata
+              ? Object.keys(newVisitsJSON[0].metadata).slice(0, 5)
+              : [],
+            title: newVisitsJSON[0].title?.substring(0, 40),
+          });
+        }
+
         const allVisits = [...existingVisits, ...newVisitsJSON];
         promises.push(this.savePageVisits(allVisits));
-        console.log(`Total page visits after save: ${allVisits.length}`);
+        if (IS_DEV_MODE) {
+          console.log(`Total page visits after save: ${allVisits.length}`);
+        }
       }
 
       // Merge and save tab aggregates
       if (batch.tabAggregates.size > 0) {
-        console.log(`Merging ${batch.tabAggregates.size} tab aggregates...`);
+        if (IS_DEV_MODE) {
+          console.log(`Merging ${batch.tabAggregates.size} tab aggregates...`);
+        }
 
         // Get existing aggregates
         const existingAggregates = await this.getTabAggregates();
@@ -241,19 +276,25 @@ class AggregationStorage {
         // Convert map back to array and save
         const mergedAggregates = Array.from(aggregateMap.values());
         promises.push(this.saveTabAggregates(mergedAggregates));
-        console.log(`Total tab aggregates after merge: ${mergedAggregates.length}`);
+        if (IS_DEV_MODE) {
+          console.log(`Total tab aggregates after merge: ${mergedAggregates.length}`);
+        }
       }
 
       // Don't clear events here - that's handled by the processor after successful save
 
       // Update active visit
       if (batch.activeVisit) {
-        console.log('Updating active visit...');
+        if (IS_DEV_MODE) {
+          console.log('Updating active visit...');
+        }
         promises.push(this.setActiveVisit(batch.activeVisit));
       }
 
       await Promise.all(promises);
-      console.log('✅ All aggregation data saved successfully');
+      if (IS_DEV_MODE) {
+        console.log('✅ All aggregation data saved successfully');
+      }
       return true;
     } catch (error) {
       console.error('❌ Failed to save processing results:', error);
