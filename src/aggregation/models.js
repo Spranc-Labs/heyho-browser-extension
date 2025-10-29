@@ -189,6 +189,9 @@ class TabAggregate {
     this.currentUrl = data.currentUrl || null;
     this.currentDomain = data.currentDomain || null;
     this.anonymousClientId = data.anonymousClientId;
+    // Tab lifecycle tracking
+    this.closedAt = data.closedAt || null;
+    this.isOpen = data.isOpen !== undefined ? data.isOpen : true;
   }
 
   static createNew(tabId, timestamp, anonymousClientId) {
@@ -207,6 +210,12 @@ class TabAggregate {
     this.currentUrl = url;
     this.currentDomain = domain;
     this.pageCount++;
+    return this;
+  }
+
+  close(timestamp) {
+    this.closedAt = timestamp;
+    this.isOpen = false;
     return this;
   }
 
@@ -229,20 +238,42 @@ class TabAggregate {
   }
 
   toJSON() {
+    // Generate unique ID for backend
+    const aggregateId = `agg_${this.startTime}_${this.tabId}`;
+
+    // Convert milliseconds to seconds for backend
+    const totalTimeSeconds = Math.floor(this.totalActiveDuration / 1000);
+    const activeTimeSeconds = Math.floor(this.totalActiveDuration / 1000);
+
+    // Format closed_at as ISO-8601 if available
+    const closedAtISO = this.closedAt ? new Date(this.closedAt).toISOString() : null;
+
     return {
-      tabId: this.tabId,
-      startTime: this.startTime,
-      lastActiveTime: this.lastActiveTime,
-      totalActiveDuration: this.totalActiveDuration,
-      domainDurations: this.domainDurations,
-      pageCount: this.pageCount,
-      currentUrl: this.currentUrl,
-      currentDomain: this.currentDomain,
+      // Backend required fields (snake_case)
+      id: aggregateId,
+      tabId: this.tabId, // Backend uses this to map to page_visit_id
+      total_time_seconds: totalTimeSeconds,
+      active_time_seconds: activeTimeSeconds,
+      closed_at: closedAtISO,
+
+      // Backend optional fields (snake_case)
+      current_url: this.currentUrl,
+      current_domain: this.currentDomain,
+      domain_durations: this.domainDurations,
+      page_count: this.pageCount,
+
+      // Additional metadata
+      start_time: this.startTime,
+      last_active_time: this.lastActiveTime,
+      is_open: this.isOpen,
+
+      // Statistics for insights
       statistics: {
         mostVisitedDomain: this.getMostVisitedDomain(),
         averagePageDuration: this.getAveragePageDuration(),
       },
-      // Anonymous client ID for data association
+
+      // Keep for backward compatibility during transition
       anonymousClientId: this.anonymousClientId,
     };
   }
