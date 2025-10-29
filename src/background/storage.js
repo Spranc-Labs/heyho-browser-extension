@@ -7,7 +7,7 @@
  */
 
 const DB_NAME = 'Heyho_EventsDB';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const EVENTS_STORE = 'events';
 const PAGE_VISITS_STORE = 'pageVisits';
 const TAB_AGGREGATES_STORE = 'tabAggregates';
@@ -87,6 +87,25 @@ function initDB() {
         syncedVisitsStore.createIndex('category_idx', 'category', { unique: false });
 
         console.log('IndexedDB v4: Added synced page visits store');
+      }
+
+      // Version 5: Add sync tracking to main stores for persistent data with sync status
+      if (oldVersion < 5) {
+        const transaction = event.target.transaction;
+
+        // Add synced tracking to pageVisits store
+        const pageVisitsStore = transaction.objectStore(PAGE_VISITS_STORE);
+        if (!pageVisitsStore.indexNames.contains('synced_idx')) {
+          pageVisitsStore.createIndex('synced_idx', 'synced', { unique: false });
+        }
+
+        // Add synced tracking to tabAggregates store
+        const tabAggregatesStore = transaction.objectStore(TAB_AGGREGATES_STORE);
+        if (!tabAggregatesStore.indexNames.contains('synced_idx')) {
+          tabAggregatesStore.createIndex('synced_idx', 'synced', { unique: false });
+        }
+
+        console.log('IndexedDB v5: Added sync tracking indexes to pageVisits and tabAggregates');
       }
 
       console.log('IndexedDB setup complete: created all stores with indexes');
@@ -634,6 +653,421 @@ async function cleanupOldSyncedVisits(maxAgeDays = 30) {
 }
 
 /**
+ * Save a page visit to IndexedDB with sync tracking
+ * @param {Object} visit - Page visit object
+ * @returns {Promise<void>}
+ */
+async function savePageVisit(visit) {
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([PAGE_VISITS_STORE], 'readwrite');
+      const store = transaction.objectStore(PAGE_VISITS_STORE);
+
+      // Add sync tracking fields if not present
+      const visitWithSync = {
+        ...visit,
+        synced: visit.synced !== undefined ? visit.synced : false,
+        syncedAt: visit.syncedAt || null,
+      };
+
+      const request = store.put(visitWithSync);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error(`Failed to save page visit: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to save page visit to IndexedDB: ${error.message}`);
+  }
+}
+
+/**
+ * Save multiple page visits to IndexedDB with sync tracking
+ * @param {Array<Object>} visits - Array of page visit objects
+ * @returns {Promise<void>}
+ */
+async function savePageVisits(visits) {
+  if (!Array.isArray(visits) || visits.length === 0) {
+    return;
+  }
+
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([PAGE_VISITS_STORE], 'readwrite');
+      const store = transaction.objectStore(PAGE_VISITS_STORE);
+
+      let completed = 0;
+      const total = visits.length;
+
+      visits.forEach((visit) => {
+        // Add sync tracking fields if not present
+        const visitWithSync = {
+          ...visit,
+          synced: visit.synced !== undefined ? visit.synced : false,
+          syncedAt: visit.syncedAt || null,
+        };
+
+        const request = store.put(visitWithSync);
+
+        request.onsuccess = () => {
+          completed++;
+          if (completed === total) {
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.warn(`Failed to save page visit ${visit.visitId}:`, request.error);
+          completed++;
+          if (completed === total) {
+            resolve();
+          }
+        };
+      });
+
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to save page visits to IndexedDB: ${error.message}`);
+  }
+}
+
+/**
+ * Save a tab aggregate to IndexedDB with sync tracking
+ * @param {Object} aggregate - Tab aggregate object
+ * @returns {Promise<void>}
+ */
+async function saveTabAggregate(aggregate) {
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readwrite');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+
+      // Add sync tracking fields if not present
+      const aggregateWithSync = {
+        ...aggregate,
+        synced: aggregate.synced !== undefined ? aggregate.synced : false,
+        syncedAt: aggregate.syncedAt || null,
+      };
+
+      const request = store.put(aggregateWithSync);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(new Error(`Failed to save tab aggregate: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to save tab aggregate to IndexedDB: ${error.message}`);
+  }
+}
+
+/**
+ * Save multiple tab aggregates to IndexedDB with sync tracking
+ * @param {Array<Object>} aggregates - Array of tab aggregate objects
+ * @returns {Promise<void>}
+ */
+async function saveTabAggregates(aggregates) {
+  if (!Array.isArray(aggregates) || aggregates.length === 0) {
+    return;
+  }
+
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readwrite');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+
+      let completed = 0;
+      const total = aggregates.length;
+
+      aggregates.forEach((aggregate) => {
+        // Add sync tracking fields if not present
+        const aggregateWithSync = {
+          ...aggregate,
+          synced: aggregate.synced !== undefined ? aggregate.synced : false,
+          syncedAt: aggregate.syncedAt || null,
+        };
+
+        const request = store.put(aggregateWithSync);
+
+        request.onsuccess = () => {
+          completed++;
+          if (completed === total) {
+            resolve();
+          }
+        };
+
+        request.onerror = () => {
+          console.warn(`Failed to save tab aggregate ${aggregate.tabId}:`, request.error);
+          completed++;
+          if (completed === total) {
+            resolve();
+          }
+        };
+      });
+
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to save tab aggregates to IndexedDB: ${error.message}`);
+  }
+}
+
+/**
+ * Get unsynced page visits from IndexedDB, enriched with opened_at from TabAggregate
+ * @returns {Promise<Array>} - Array of unsynced page visits with openedAt field
+ */
+async function getUnsyncedPageVisits() {
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([PAGE_VISITS_STORE, TAB_AGGREGATES_STORE], 'readonly');
+      const pageVisitsStore = transaction.objectStore(PAGE_VISITS_STORE);
+      const tabAggregatesStore = transaction.objectStore(TAB_AGGREGATES_STORE);
+      const index = pageVisitsStore.index('synced_idx');
+
+      // Query for records where synced = false
+      const request = index.getAll(false);
+
+      request.onsuccess = () => {
+        const pageVisits = request.result || [];
+
+        // If no page visits, return empty array
+        if (pageVisits.length === 0) {
+          resolve([]);
+          return;
+        }
+
+        // Enrich page visits with openedAt from TabAggregate
+        const enrichedVisits = [];
+        let processed = 0;
+
+        pageVisits.forEach((visit) => {
+          // Get TabAggregate for this visit's tabId
+          const aggregateRequest = tabAggregatesStore.get(visit.tabId);
+
+          aggregateRequest.onsuccess = () => {
+            const tabAggregate = aggregateRequest.result;
+
+            // Add openedAt field from TabAggregate.startTime if available
+            // This represents when the tab was actually opened (not just activated)
+            if (tabAggregate && tabAggregate.startTime) {
+              visit.openedAt = tabAggregate.startTime;
+            }
+
+            enrichedVisits.push(visit);
+            processed++;
+
+            // When all visits are processed, resolve
+            if (processed === pageVisits.length) {
+              resolve(enrichedVisits);
+            }
+          };
+
+          aggregateRequest.onerror = () => {
+            // If we can't get the TabAggregate, still include the visit without openedAt
+            console.warn(
+              `Failed to get TabAggregate for tabId ${visit.tabId}:`,
+              aggregateRequest.error
+            );
+            enrichedVisits.push(visit);
+            processed++;
+
+            if (processed === pageVisits.length) {
+              resolve(enrichedVisits);
+            }
+          };
+        });
+      };
+
+      request.onerror = () =>
+        reject(new Error(`Failed to get unsynced page visits: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get unsynced page visits: ${error.message}`);
+  }
+}
+
+/**
+ * Get unsynced tab aggregates from IndexedDB
+ * @returns {Promise<Array>} - Array of unsynced tab aggregates
+ */
+async function getUnsyncedTabAggregates() {
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readonly');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+      const index = store.index('synced_idx');
+
+      // Query for records where synced = false
+      const request = index.getAll(false);
+
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () =>
+        reject(new Error(`Failed to get unsynced tab aggregates: ${request.error}`));
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to get unsynced tab aggregates: ${error.message}`);
+  }
+}
+
+/**
+ * Mark page visits as synced
+ * @param {Array<string>} visitIds - Array of visit IDs to mark as synced
+ * @param {number} timestamp - Timestamp when synced (default: now)
+ * @returns {Promise<number>} - Number of visits marked as synced
+ */
+async function markPageVisitsSynced(visitIds, timestamp = Date.now()) {
+  if (!Array.isArray(visitIds) || visitIds.length === 0) {
+    return 0;
+  }
+
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([PAGE_VISITS_STORE], 'readwrite');
+      const store = transaction.objectStore(PAGE_VISITS_STORE);
+
+      let markedCount = 0;
+      let completed = 0;
+      const total = visitIds.length;
+
+      visitIds.forEach((visitId) => {
+        const getRequest = store.get(visitId);
+
+        getRequest.onsuccess = () => {
+          const visit = getRequest.result;
+          if (visit) {
+            visit.synced = true;
+            visit.syncedAt = timestamp;
+
+            const updateRequest = store.put(visit);
+
+            updateRequest.onsuccess = () => {
+              markedCount++;
+              completed++;
+              if (completed === total) {
+                resolve(markedCount);
+              }
+            };
+
+            updateRequest.onerror = () => {
+              console.warn(`Failed to mark visit ${visitId} as synced:`, updateRequest.error);
+              completed++;
+              if (completed === total) {
+                resolve(markedCount);
+              }
+            };
+          } else {
+            completed++;
+            if (completed === total) {
+              resolve(markedCount);
+            }
+          }
+        };
+
+        getRequest.onerror = () => {
+          console.warn(`Failed to get visit ${visitId}:`, getRequest.error);
+          completed++;
+          if (completed === total) {
+            resolve(markedCount);
+          }
+        };
+      });
+
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to mark page visits as synced: ${error.message}`);
+  }
+}
+
+/**
+ * Mark tab aggregates as synced
+ * @param {Array<number>} tabIds - Array of tab IDs to mark as synced
+ * @param {number} timestamp - Timestamp when synced (default: now)
+ * @returns {Promise<number>} - Number of aggregates marked as synced
+ */
+async function markTabAggregatesSynced(tabIds, timestamp = Date.now()) {
+  if (!Array.isArray(tabIds) || tabIds.length === 0) {
+    return 0;
+  }
+
+  try {
+    const db = await initDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([TAB_AGGREGATES_STORE], 'readwrite');
+      const store = transaction.objectStore(TAB_AGGREGATES_STORE);
+
+      let markedCount = 0;
+      let completed = 0;
+      const total = tabIds.length;
+
+      tabIds.forEach((tabId) => {
+        const getRequest = store.get(tabId);
+
+        getRequest.onsuccess = () => {
+          const aggregate = getRequest.result;
+          if (aggregate) {
+            aggregate.synced = true;
+            aggregate.syncedAt = timestamp;
+
+            const updateRequest = store.put(aggregate);
+
+            updateRequest.onsuccess = () => {
+              markedCount++;
+              completed++;
+              if (completed === total) {
+                resolve(markedCount);
+              }
+            };
+
+            updateRequest.onerror = () => {
+              console.warn(`Failed to mark aggregate ${tabId} as synced:`, updateRequest.error);
+              completed++;
+              if (completed === total) {
+                resolve(markedCount);
+              }
+            };
+          } else {
+            completed++;
+            if (completed === total) {
+              resolve(markedCount);
+            }
+          }
+        };
+
+        getRequest.onerror = () => {
+          console.warn(`Failed to get aggregate ${tabId}:`, getRequest.error);
+          completed++;
+          if (completed === total) {
+            resolve(markedCount);
+          }
+        };
+      });
+
+      transaction.onerror = () => reject(new Error(`Transaction failed: ${transaction.error}`));
+    });
+  } catch (error) {
+    throw new Error(`Failed to mark tab aggregates as synced: ${error.message}`);
+  }
+}
+
+/**
  * Reset the cached database instance (for testing purposes)
  * @private
  */
@@ -654,6 +1088,14 @@ if (typeof module !== 'undefined' && module.exports) {
     getPageVisitsCount,
     getTabAggregatesCount,
     getTabAggregatesForProcessing,
+    savePageVisit,
+    savePageVisits,
+    saveTabAggregate,
+    saveTabAggregates,
+    getUnsyncedPageVisits,
+    getUnsyncedTabAggregates,
+    markPageVisitsSynced,
+    markTabAggregatesSynced,
     EVENTS_STORE,
     PAGE_VISITS_STORE,
     TAB_AGGREGATES_STORE,
@@ -677,6 +1119,14 @@ if (typeof module !== 'undefined' && module.exports) {
     getSyncedPageVisits,
     getSyncedPageVisitsCount,
     cleanupOldSyncedVisits,
+    savePageVisit,
+    savePageVisits,
+    saveTabAggregate,
+    saveTabAggregates,
+    getUnsyncedPageVisits,
+    getUnsyncedTabAggregates,
+    markPageVisitsSynced,
+    markTabAggregatesSynced,
     EVENTS_STORE,
     PAGE_VISITS_STORE,
     TAB_AGGREGATES_STORE,
