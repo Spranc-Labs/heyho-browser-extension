@@ -13,8 +13,22 @@
       <div class="version">v1.0.0</div>
     </header>
 
-    <!-- Authentication Section -->
-    <section class="auth-section" id="auth-section">
+    <!-- Tabs Navigation -->
+    <nav class="tabs-nav">
+      <button class="tab-button active" data-tab="data-collection">
+        <span class="icon">📊</span>
+        Data Collection
+      </button>
+      <button class="tab-button" data-tab="bookmarks">
+        <span class="icon">🔖</span>
+        Bookmarks
+      </button>
+    </nav>
+
+    <!-- Data Collection Tab -->
+    <div class="tab-content active" id="data-collection-tab">
+      <!-- Authentication Section -->
+      <section class="auth-section" id="auth-section">
       <!-- Logged Out State -->
       <div id="auth-logged-out" class="auth-state" style="display: none;">
         <div class="auth-message">
@@ -121,12 +135,93 @@
       </div>
     </section>
 
-    <section class="logs">
-      <h2>Activity Log</h2>
-      <div id="log-container" class="log-container">
-        <div class="log-entry">Ready to aggregate data...</div>
-      </div>
-    </section>
+      <section class="logs">
+        <h2>Activity Log</h2>
+        <div id="log-container" class="log-container">
+          <div class="log-entry">Ready to aggregate data...</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Bookmarks Tab -->
+    <div class="tab-content" id="bookmarks-tab">
+      <section class="bookmark-form-section">
+        <h2>New Bookmark</h2>
+        <form id="bookmark-form" class="bookmark-form">
+          <div class="form-group">
+            <label for="bookmark-title">Title</label>
+            <input
+              type="text"
+              id="bookmark-title"
+              class="form-control"
+              placeholder="Add title..."
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="bookmark-description">Description</label>
+            <input
+              type="text"
+              id="bookmark-description"
+              class="form-control"
+              placeholder="Add description..."
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="bookmark-note">Note</label>
+            <textarea
+              id="bookmark-note"
+              class="form-control textarea"
+              rows="4"
+              placeholder="Add your notes..."
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="bookmark-collection">Collection</label>
+            <select id="bookmark-collection" class="form-control">
+              <option value="">Unsorted</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="bookmark-tags">Tags</label>
+            <input
+              type="text"
+              id="bookmark-tags"
+              class="form-control"
+              placeholder="Add tags..."
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="bookmark-url">URL</label>
+            <input
+              type="url"
+              id="bookmark-url"
+              class="form-control"
+              readonly
+            />
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary">
+              <span class="icon">💾</span>
+              Save
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="bookmarks-list-section">
+        <h2>Recent Bookmarks</h2>
+        <div id="bookmarks-list" class="bookmarks-list">
+          <div class="empty-state">No bookmarks yet. Save your first one above!</div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <script src="popup.js"></script>

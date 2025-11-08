@@ -616,7 +616,218 @@ class DebugPanel {
   }
 }
 
+/**
+ * Tab Manager for handling tab switching
+ */
+class TabManager {
+  constructor() {
+    this.setupTabListeners();
+  }
+
+  setupTabListeners() {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => this.switchTab(button));
+    });
+  }
+
+  switchTab(clickedButton) {
+    const tabName = clickedButton.dataset.tab;
+
+    // Update tab buttons
+    document.querySelectorAll('.tab-button').forEach((btn) => {
+      btn.classList.remove('active');
+    });
+    clickedButton.classList.add('active');
+
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach((content) => {
+      content.classList.remove('active');
+    });
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+  }
+}
+
+/**
+ * Bookmark Manager for handling bookmark creation and display
+ */
+class BookmarkManager {
+  constructor() {
+    this.setupBookmarkListeners();
+    this.loadCurrentTab();
+    this.loadCollections();
+    this.loadBookmarks();
+  }
+
+  setupBookmarkListeners() {
+    const form = document.getElementById('bookmark-form');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      this.handleSaveBookmark();
+    });
+  }
+
+  async loadCurrentTab() {
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab) {
+        document.getElementById('bookmark-url').value = tab.url || '';
+        document.getElementById('bookmark-title').value = tab.title || '';
+      }
+    } catch (error) {
+      console.error('Failed to load current tab:', error);
+    }
+  }
+
+  async loadCollections() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getCollections',
+      });
+
+      if (response && response.success && response.data) {
+        const select = document.getElementById('bookmark-collection');
+        // Keep "Unsorted" as first option
+        response.data.forEach((collection) => {
+          const option = document.createElement('option');
+          option.value = collection.id;
+          option.textContent = `${collection.icon || '📁'} ${collection.name}`;
+          select.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load collections:', error);
+    }
+  }
+
+  async loadBookmarks() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'getBookmarks',
+        data: { limit: 10 },
+      });
+
+      if (response && response.success && response.data) {
+        this.displayBookmarks(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load bookmarks:', error);
+    }
+  }
+
+  displayBookmarks(bookmarks) {
+    const container = document.getElementById('bookmarks-list');
+
+    // Clear container
+    container.textContent = '';
+
+    if (!bookmarks || bookmarks.length === 0) {
+      const emptyState = document.createElement('div');
+      emptyState.className = 'empty-state';
+      emptyState.textContent = 'No bookmarks yet. Save your first one above!';
+      container.appendChild(emptyState);
+      return;
+    }
+
+    // Create bookmark elements
+    bookmarks.forEach((bookmark) => {
+      const item = document.createElement('div');
+      item.className = 'bookmark-item';
+
+      const header = document.createElement('div');
+      header.className = 'bookmark-item-header';
+
+      const title = document.createElement('div');
+      title.className = 'bookmark-item-title';
+      title.textContent = bookmark.title || 'Untitled';
+      header.appendChild(title);
+
+      item.appendChild(header);
+
+      const url = document.createElement('a');
+      url.className = 'bookmark-item-url';
+      url.href = bookmark.url;
+      url.target = '_blank';
+      url.textContent = bookmark.url;
+      item.appendChild(url);
+
+      if (bookmark.note) {
+        const note = document.createElement('div');
+        note.className = 'bookmark-item-note';
+        note.textContent = bookmark.note;
+        item.appendChild(note);
+      }
+
+      if (bookmark.tags && bookmark.tags.length > 0) {
+        const tagsContainer = document.createElement('div');
+        tagsContainer.className = 'bookmark-item-tags';
+        bookmark.tags.forEach((tagText) => {
+          const tag = document.createElement('span');
+          tag.className = 'bookmark-tag';
+          tag.textContent = tagText;
+          tagsContainer.appendChild(tag);
+        });
+        item.appendChild(tagsContainer);
+      }
+
+      container.appendChild(item);
+    });
+  }
+
+  async handleSaveBookmark() {
+    const url = document.getElementById('bookmark-url').value;
+    const title = document.getElementById('bookmark-title').value;
+    const description = document.getElementById('bookmark-description').value;
+    const note = document.getElementById('bookmark-note').value;
+    const collectionId = document.getElementById('bookmark-collection').value;
+    const tagsInput = document.getElementById('bookmark-tags').value;
+
+    // Parse tags
+    const tags = tagsInput
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'saveBookmark',
+        data: {
+          url,
+          title,
+          description,
+          note,
+          collection_id: collectionId || null,
+          tags,
+        },
+      });
+
+      if (response && response.success) {
+        // Clear form (except URL and title from current tab)
+        document.getElementById('bookmark-description').value = '';
+        document.getElementById('bookmark-note').value = '';
+        document.getElementById('bookmark-tags').value = '';
+        document.getElementById('bookmark-collection').value = '';
+
+        // Reload bookmarks list
+        await this.loadBookmarks();
+
+        // Show success message
+        console.log('✅ Bookmark saved successfully!');
+        // TODO: Replace with proper UI notification
+      } else {
+        console.error('❌ Failed to save bookmark:', response?.error || 'Unknown error');
+        // TODO: Replace with proper UI notification
+      }
+    } catch (error) {
+      console.error('❌ Failed to save bookmark:', error);
+      // TODO: Replace with proper UI notification
+    }
+  }
+}
+
 // Initialize the debug panel when popup loads
 document.addEventListener('DOMContentLoaded', () => {
   new DebugPanel();
+  new TabManager();
+  new BookmarkManager();
 });

@@ -112,6 +112,7 @@ async function initialize() {
   const { setupAuthMessageHandlers } = self.AuthHandlers;
   const { init: initSyncManager, setupSyncAlarm } = self.SyncManager;
   const { setupSyncMessageHandlers } = self.SyncHandlers;
+  const { setupBookmarkMessageHandlers } = self.BookmarkHandlers || {};
   const { init: initMetadataHandler } = self.MetadataHandler || {};
 
   // Log service worker lifecycle
@@ -152,6 +153,14 @@ async function initialize() {
 
   // Setup sync message handlers
   setupSyncMessageHandlers();
+
+  // Setup bookmark message handlers
+  if (setupBookmarkMessageHandlers) {
+    setupBookmarkMessageHandlers();
+    if (IS_DEV_MODE) {
+      console.log('✅ Bookmark handlers initialized');
+    }
+  }
 
   // Run data migration for anonymous client ID (if module is available)
   if (self.AnonymousIdModule && self.AnonymousIdModule.migrateExistingData) {
