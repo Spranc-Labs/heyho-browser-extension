@@ -9,6 +9,9 @@ const AGGREGATION_CONFIG = {
   alarmName: 'aggregate',
   intervalMinutes: 5,
   batchSize: 10,
+  // Wait for metadata extraction to complete before processing
+  // YouTube SPA navigation takes 3.5s, so wait 5s to be safe
+  metadataWaitMs: 5000,
 };
 
 // Module instances
@@ -63,6 +66,7 @@ function setupAlarmListener() {
 
 /**
  * Process all pending events
+ * Waits for metadata extraction to complete before processing
  */
 async function processEvents() {
   if (!processor) {
@@ -71,6 +75,15 @@ async function processEvents() {
   }
 
   try {
+    // Wait for metadata extraction to complete
+    // This ensures that metadata from content scripts has time to be cached
+    // before we start processing events and creating PageVisits
+    console.log(`⏳ Waiting ${AGGREGATION_CONFIG.metadataWaitMs}ms for metadata extraction...`);
+    await new Promise((resolve) => {
+      setTimeout(resolve, AGGREGATION_CONFIG.metadataWaitMs);
+    });
+    console.log('✅ Metadata wait complete, starting aggregation');
+
     const result = await processor.processAllEvents();
 
     // Store aggregation timestamp for debug panel
@@ -178,9 +191,3 @@ self.aggregator = {
   clearAllData,
   triggerAggregation,
 };
-
-// Auto-initialize if this is the main aggregator module
-if (typeof self.aggregatorInitialized === 'undefined') {
-  self.aggregatorInitialized = true;
-  initAggregator();
-}

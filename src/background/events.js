@@ -5,6 +5,34 @@
  */
 
 /**
+ * Check if URL should be tracked
+ * Only track http:// and https:// URLs
+ * @param {string} url - The URL to check
+ * @returns {boolean} - True if URL should be tracked
+ */
+function _shouldTrackUrl(url) {
+  if (!url) {
+    return false;
+  }
+
+  // Don't track non-HTTP URLs
+  const excludedPrefixes = [
+    'chrome://',
+    'about:',
+    'chrome-extension://',
+    'moz-extension://',
+    'safari-extension://',
+    'edge://',
+    'view-source:',
+    'file://',
+    'data:',
+    'blob:',
+  ];
+
+  return !excludedPrefixes.some((prefix) => url.startsWith(prefix));
+}
+
+/**
  * Helper function to extract domain from URL
  * Handles invalid URLs gracefully (e.g., about:blank, chrome://, etc.)
  * @param {string} url - The URL to extract domain from

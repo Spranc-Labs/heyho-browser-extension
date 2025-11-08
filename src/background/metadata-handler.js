@@ -9,12 +9,12 @@ const MetadataHandler = (function () {
 
   const { IS_DEV_MODE } = self.ConfigModule || { IS_DEV_MODE: false };
 
-  // Cache metadata for tabs (keyed by tabId)
+  // Cache metadata by URL (not tabId) to avoid race conditions with SPA navigation
   const metadataCache = new Map();
 
-  // Cache cleanup interval (5 minutes)
-  const CACHE_CLEANUP_INTERVAL = 5 * 60 * 1000;
-  const MAX_CACHE_AGE = 5 * 60 * 1000; // 5 minutes
+  // Cache cleanup interval (1 hour)
+  const CACHE_CLEANUP_INTERVAL = 60 * 60 * 1000;
+  const MAX_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
 
   /**
    * Initialize metadata handler
@@ -38,15 +38,15 @@ const MetadataHandler = (function () {
    * @param {Object} tab - Browser tab object
    */
   function handlePageMetadata(data, tab) {
-    if (!tab || !tab.id) {
+    if (!tab || !tab.id || !data.url) {
       if (IS_DEV_MODE) {
-        console.warn('[HeyHo] Received metadata without valid tab');
+        console.warn('[HeyHo] Received metadata without valid tab or URL');
       }
       return;
     }
 
-    // Store metadata with timestamp
-    metadataCache.set(tab.id, {
+    // Store metadata by URL (not tabId) to avoid race conditions
+    metadataCache.set(data.url, {
       url: data.url,
       title: data.title,
       metadata: data.metadata,
@@ -65,12 +65,12 @@ const MetadataHandler = (function () {
   }
 
   /**
-   * Get cached metadata for a tab
-   * @param {number} tabId - Tab ID
+   * Get cached metadata for a URL
+   * @param {string} url - Page URL
    * @returns {Object} Metadata object or empty object
    */
-  function getMetadata(tabId) {
-    const cached = metadataCache.get(tabId);
+  function getMetadata(url) {
+    const cached = metadataCache.get(url);
 
     if (!cached) {
       return {};
@@ -78,7 +78,7 @@ const MetadataHandler = (function () {
 
     // Check if cache is still valid
     if (Date.now() - cached.timestamp > MAX_CACHE_AGE) {
-      metadataCache.delete(tabId);
+      metadataCache.delete(url);
       return {};
     }
 
@@ -86,21 +86,21 @@ const MetadataHandler = (function () {
   }
 
   /**
-   * Get cached title for a tab
-   * @param {number} tabId - Tab ID
+   * Get cached title for a URL
+   * @param {string} url - Page URL
    * @returns {string} Page title or empty string
    */
-  function getTitle(tabId) {
-    const cached = metadataCache.get(tabId);
+  function getTitle(url) {
+    const cached = metadataCache.get(url);
     return cached?.title || '';
   }
 
   /**
-   * Clear metadata for a specific tab
-   * @param {number} tabId - Tab ID
+   * Clear metadata for a specific URL
+   * @param {string} url - Page URL
    */
-  function clearMetadata(tabId) {
-    metadataCache.delete(tabId);
+  function clearMetadata(url) {
+    metadataCache.delete(url);
   }
 
   /**
@@ -110,9 +110,9 @@ const MetadataHandler = (function () {
     const now = Date.now();
     let cleaned = 0;
 
-    for (const [tabId, cached] of metadataCache.entries()) {
+    for (const [url, cached] of metadataCache.entries()) {
       if (now - cached.timestamp > MAX_CACHE_AGE) {
-        metadataCache.delete(tabId);
+        metadataCache.delete(url);
         cleaned++;
       }
     }
@@ -129,7 +129,7 @@ const MetadataHandler = (function () {
   function getStats() {
     return {
       totalCached: metadataCache.size,
-      tabIds: Array.from(metadataCache.keys()),
+      urls: Array.from(metadataCache.keys()),
     };
   }
 

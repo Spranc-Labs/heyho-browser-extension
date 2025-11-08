@@ -189,7 +189,8 @@ class AggregationStorage {
       if (batch.pageVisits.length > 0) {
         console.log(`Saving ${batch.pageVisits.length} new page visits...`);
         const existingVisits = await this.getPageVisits();
-        const newVisitsJSON = batch.pageVisits.map((v) => v.toJSON());
+        // Pass closedTabs map to toJSON so it can set closedAt correctly
+        const newVisitsJSON = batch.pageVisits.map((v) => v.toJSON(batch.closedTabs));
         const allVisits = [...existingVisits, ...newVisitsJSON];
         promises.push(this.savePageVisits(allVisits));
         console.log(`Total page visits after save: ${allVisits.length}`);

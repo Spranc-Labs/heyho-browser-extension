@@ -11,7 +11,31 @@
  * @returns {boolean} - true if event should be stored, false if it should be discarded
  */
 function shouldStoreEvent(eventObject) {
-  // Rule 1: Filter Uninteresting Domains
+  // Rule 1: Filter Non-HTTP URLs
+  // Only track http:// and https:// URLs to avoid backend validation errors
+  // Exception: CLOSE events are always tracked (they don't require a URL)
+  if (eventObject.type !== 'CLOSE' && eventObject.url) {
+    const excludedPrefixes = [
+      'chrome://',
+      'about:',
+      'chrome-extension://',
+      'moz-extension://',
+      'safari-extension://',
+      'edge://',
+      'view-source:',
+      'file://',
+      'data:',
+      'blob:',
+    ];
+
+    const shouldTrack = !excludedPrefixes.some((prefix) => eventObject.url.startsWith(prefix));
+
+    if (!shouldTrack) {
+      return false;
+    }
+  }
+
+  // Rule 2: Filter Uninteresting Domains (legacy check, redundant with Rule 1)
   const blockedDomains = [
     'newtab',
     'about:newtab',
@@ -29,7 +53,7 @@ function shouldStoreEvent(eventObject) {
     }
   }
 
-  // Rule 2: Filter Events Without a URL/Domain
+  // Rule 3: Filter Events Without a URL/Domain
   // Exception: CLOSE and HEARTBEAT events are always considered valuable
   if (eventObject.type !== 'CLOSE' && eventObject.type !== 'HEARTBEAT') {
     if (!domain || domain === '' || domain === null || domain === undefined) {

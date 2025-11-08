@@ -158,9 +158,21 @@ class EventProcessor {
       this.batch.addPageVisit(completedVisit);
     }
 
-    // Get metadata for this tab
-    const metadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tabId) : {};
-    const title = self.MetadataHandler ? self.MetadataHandler.getTitle(tabId) : '';
+    // Get metadata for this URL
+    const metadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(url) : {};
+    const title = self.MetadataHandler ? self.MetadataHandler.getTitle(url) : '';
+
+    // DEBUG: Log metadata retrieval for page_view events
+    console.log(`[Processor] _handlePageView for: ${url}`);
+    console.log(`  MetadataHandler exists: ${!!self.MetadataHandler}`);
+    console.log(`  Title retrieved: "${title}"`);
+    console.log(
+      `  Metadata keys: ${Object.keys(metadata).length > 0 ? Object.keys(metadata).join(', ') : 'EMPTY'}`
+    );
+    if (self.MetadataHandler) {
+      const cacheStats = self.MetadataHandler.getStats();
+      console.log(`  Cache stats: ${cacheStats.totalCached} URLs cached`);
+    }
 
     // Create new active visit with metadata
     const newVisit = self.PageVisit.createFromEvent(
@@ -290,6 +302,10 @@ class EventProcessor {
       throw new Error('Tab close event missing tabId');
     }
 
+    // Record that this tab was closed at this timestamp
+    // This will be used by PageVisit.toJSON() to set closedAt
+    this.batch.closedTabs.set(tabId, timestamp);
+
     // Complete active visit if it belongs to this tab
     if (this.batch.activeVisit && this.batch.activeVisit.tabId === tabId) {
       const completedVisit = new self.PageVisit(this.batch.activeVisit);
@@ -326,9 +342,9 @@ class EventProcessor {
       this.batch.addPageVisit(completedVisit);
     }
 
-    // Get metadata for this tab
-    const metadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(tabId) : {};
-    const title = self.MetadataHandler ? self.MetadataHandler.getTitle(tabId) : '';
+    // Get metadata for this URL
+    const metadata = self.MetadataHandler ? self.MetadataHandler.getMetadata(url) : {};
+    const title = self.MetadataHandler ? self.MetadataHandler.getTitle(url) : '';
 
     // Create new active visit with metadata
     const newVisit = self.PageVisit.createFromEvent(

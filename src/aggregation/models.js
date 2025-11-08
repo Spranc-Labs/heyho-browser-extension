@@ -139,7 +139,15 @@ class PageVisit {
     }
   }
 
-  toJSON() {
+  toJSON(closedTabsMap = null) {
+    // Check if this tab was closed by looking up in the closedTabs map
+    // If the tab was closed, use the actual close timestamp
+    // Otherwise, closedAt should be null (tab is still open)
+    let closedAt = null;
+    if (closedTabsMap && closedTabsMap.has(this.tabId)) {
+      closedAt = closedTabsMap.get(this.tabId);
+    }
+
     return {
       // Legacy format fields (for compatibility with existing data)
       visitId: this.id,
@@ -171,6 +179,14 @@ class PageVisit {
 
       // Anonymous client ID for data association
       anonymousClientId: this.anonymousClientId,
+
+      // Tab close timestamp (when tab was actually closed, not just page visit ended)
+      closedAt: closedAt,
+
+      // Sync tracking fields (for incremental sync)
+      synced: false, // Has this record been synced to backend?
+      syncedAt: null, // When was it synced? (timestamp)
+      syncStatus: 'pending', // Sync status: 'pending' | 'synced' | 'failed'
     };
   }
 }
@@ -244,6 +260,11 @@ class TabAggregate {
       },
       // Anonymous client ID for data association
       anonymousClientId: this.anonymousClientId,
+
+      // Sync tracking fields (for incremental sync)
+      synced: false, // Has this record been synced to backend?
+      syncedAt: null, // When was it synced? (timestamp)
+      syncStatus: 'pending', // Sync status: 'pending' | 'synced' | 'failed'
     };
   }
 }
@@ -267,6 +288,10 @@ class AggregationBatch {
     this.processedEvents = new Set();
     this.pageVisits = [];
     this.errors = [];
+
+    // Track which tabs have been closed during this batch
+    // Map<tabId, closeTimestamp>
+    this.closedTabs = new Map();
   }
 
   markEventProcessed(eventId) {
