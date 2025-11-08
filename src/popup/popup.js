@@ -19,20 +19,52 @@ class DebugPanel {
       // Wait for background script to be ready
       await this.waitForBackgroundScript();
 
-      // Load initial data
-      await this.loadAuthState();
-      await this.loadStats();
-      await this.loadSyncState();
+      // Load initial data (don't fail if one fails)
+      await Promise.allSettled([this.loadAuthState(), this.loadStats(), this.loadSyncState()]);
     } catch (error) {
       console.error('Failed to initialize popup:', error);
       this.log('⚠️ Background script not ready. Please reload the extension.', 'error');
+
+      // Even if background script is not ready, try to load stats anyway
+      // This allows showing cached data even if background is slow
+      try {
+        await this.loadStats();
+      } catch (statsError) {
+        console.error('Failed to load stats:', statsError);
+      }
     }
+  }
+
+  /**
+   * Send message to background with retry logic
+   * Service workers can terminate, so we retry if the first attempt fails
+   */
+  async sendMessageWithRetry(message, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        // eslint-disable-next-line no-await-in-loop -- Retry mechanism requires sequential attempts
+        const response = await chrome.runtime.sendMessage(message);
+        return response;
+      } catch (error) {
+        // If this is the last retry, throw the error
+        if (i === maxRetries - 1) {
+          throw error;
+        }
+        // Wait a bit before retrying (service worker might be waking up)
+        // eslint-disable-next-line no-await-in-loop -- Delay between retry attempts
+        await new Promise((resolve) => {
+          setTimeout(resolve, 300);
+        });
+      }
+    }
+    // This should never be reached, but ESLint requires explicit return
+    throw new Error('Retry loop completed without returning or throwing');
   }
 
   /**
    * Wait for background script to be ready by attempting a simple ping
    */
-  async waitForBackgroundScript(maxAttempts = 10, delay = 100) {
+  async waitForBackgroundScript(maxAttempts = 30, delay = 200) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
         // eslint-disable-next-line no-await-in-loop -- Retry mechanism requires sequential attempts
@@ -58,11 +90,11 @@ class DebugPanel {
    */
   async loadAuthState() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await this.sendMessageWithRetry({
         action: 'getAuthState',
       });
 
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         this.updateAuthUI(response.data);
       } else {
         this.showLoggedOutState();
@@ -124,11 +156,11 @@ class DebugPanel {
    */
   async loadSyncState() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await this.sendMessageWithRetry({
         action: 'getSyncState',
       });
 
-      if (response.success && response.data) {
+      if (response && response.success && response.data) {
         this.updateSyncUI(response.data);
       }
     } catch (error) {
@@ -265,20 +297,34 @@ class DebugPanel {
 
   async loadStats() {
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await this.sendMessageWithRetry({
         action: 'getDebugStats',
       });
 
-      if (response.success) {
-        document.getElementById('events-count').textContent = response.stats.eventsCount;
-        document.getElementById('visits-count').textContent = response.stats.visitsCount;
-        document.getElementById('tabs-count').textContent = response.stats.tabsCount;
-        document.getElementById('last-aggregation').textContent = response.stats.lastAggregation;
+      if (response && response.success) {
+        document.getElementById('events-count').textContent = response.stats.eventsCount ?? 0;
+        document.getElementById('visits-count').textContent = response.stats.visitsCount ?? 0;
+        document.getElementById('tabs-count').textContent = response.stats.tabsCount ?? 0;
+        document.getElementById('last-aggregation').textContent =
+          response.stats.lastAggregation ?? 'Never';
       } else {
-        this.log('Failed to load stats', 'error');
+        // Show default values instead of leaving as "-"
+        document.getElementById('events-count').textContent = '0';
+        document.getElementById('visits-count').textContent = '0';
+        document.getElementById('tabs-count').textContent = '0';
+        document.getElementById('last-aggregation').textContent = 'Never';
+
+        if (response && response.error) {
+          console.warn('Failed to load stats:', response.error);
+        }
       }
     } catch (error) {
-      this.log(`Error loading stats: ${error.message}`, 'error');
+      console.error('Error loading stats:', error);
+      // Show default values on error
+      document.getElementById('events-count').textContent = '0';
+      document.getElementById('visits-count').textContent = '0';
+      document.getElementById('tabs-count').textContent = '0';
+      document.getElementById('last-aggregation').textContent = 'Never';
     }
   }
 
@@ -317,18 +363,18 @@ class DebugPanel {
     this.log('Triggering manual aggregation...', 'info');
 
     try {
-      const response = await chrome.runtime.sendMessage({
+      const response = await this.sendMessageWithRetry({
         action: 'triggerAggregation',
       });
 
-      if (response.success) {
+      if (response && response.success) {
         this.log(
           `✅ Aggregation completed: processed ${response.eventsProcessed} events`,
           'success'
         );
-        this.loadStats(); // Refresh stats
+        await this.loadStats(); // Refresh stats
       } else {
-        this.log(`❌ Aggregation failed: ${response.error}`, 'error');
+        this.log(`❌ Aggregation failed: ${response?.error || 'Unknown error'}`, 'error');
       }
     } catch (error) {
       this.log(`❌ Error: ${error.message}`, 'error');
