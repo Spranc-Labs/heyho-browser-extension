@@ -191,14 +191,32 @@ const AuthManager = (function () {
       // ApiClient returns: { success: true, data: <backend response> }
       // Backend returns: { data: { AccessToken, RefreshToken, IdToken, ExpiresIn } }
       if (response.success && response.data) {
+        // DEBUG: Log the actual response structure
+        if (IS_DEV_MODE) {
+          console.log('🔍 Full response:', JSON.stringify(response, null, 2));
+          console.log('🔍 response.data:', JSON.stringify(response.data, null, 2));
+        }
+
         // Extract the actual token data from nested structure
         const tokenData = response.data.data || response.data;
+
+        if (IS_DEV_MODE) {
+          console.log('🔍 tokenData:', JSON.stringify(tokenData, null, 2));
+          console.log('🔍 AccessToken exists:', !!tokenData.AccessToken);
+          console.log('🔍 RefreshToken exists:', !!tokenData.RefreshToken);
+        }
 
         const accessToken = tokenData.AccessToken;
         const refreshToken = tokenData.RefreshToken;
         const expiresIn = tokenData.ExpiresIn || 3600;
 
         if (!accessToken || !refreshToken) {
+          if (IS_DEV_MODE) {
+            console.error('❌ Missing tokens!');
+            console.error('   AccessToken:', accessToken ? 'exists' : 'MISSING');
+            console.error('   RefreshToken:', refreshToken ? 'exists' : 'MISSING');
+            console.error('   tokenData keys:', Object.keys(tokenData));
+          }
           return {
             success: false,
             error: 'Invalid response from server - missing tokens',
