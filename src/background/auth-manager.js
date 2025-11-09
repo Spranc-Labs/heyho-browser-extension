@@ -223,23 +223,33 @@ const AuthManager = (function () {
           };
         }
 
-        // Fetch user data from /auth/me endpoint
-        const userResponse = await self.ApiClient.get('/auth/me', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
+        // Store tokens first so ApiClient can use them for authenticated requests
+        await storeTokens({
+          accessToken,
+          refreshToken,
+          user: null, // Will be updated after fetching user data
+          expiresIn,
         });
 
-        if (!userResponse.success || !userResponse.user) {
+        // Fetch user data from /auth/me endpoint (requires authenticated flag)
+        const userResponse = await self.ApiClient.get('/auth/me', {
+          authenticated: true, // This tells ApiClient to add the Bearer token
+        });
+
+        if (IS_DEV_MODE) {
+          console.log('🔍 /auth/me response:', JSON.stringify(userResponse, null, 2));
+        }
+
+        if (!userResponse.success || !userResponse.data?.user) {
           return {
             success: false,
             error: 'Failed to fetch user data',
           };
         }
 
-        const user = userResponse.user;
+        const user = userResponse.data.user;
 
-        // Store tokens
+        // Update stored tokens with user data
         await storeTokens({
           accessToken,
           refreshToken,
