@@ -46,24 +46,17 @@ const AuthManager = (function () {
    */
   async function loadAuthState() {
     try {
-      const result = await storage.get([
-        'accessToken',
-        'idToken',
-        'refreshToken',
-        'tokenExpiry',
-        'userData',
-      ]);
+      const result = await storage.get(['accessToken', 'refreshToken', 'tokenExpiry', 'userData']);
 
-      if (result.accessToken && result.idToken) {
+      if (result.accessToken && result.refreshToken) {
         authState.tokens = {
           accessToken: result.accessToken,
-          idToken: result.idToken,
           refreshToken: result.refreshToken,
           expiry: result.tokenExpiry,
         };
 
-        // Decode user data from idToken
-        authState.user = result.userData || decodeIdToken(result.idToken);
+        // Get user data from storage (not from idToken)
+        authState.user = result.userData;
         authState.isAuthenticated = true;
       }
     } catch (error) {
@@ -112,25 +105,25 @@ const AuthManager = (function () {
       }
 
       const response = await self.ApiClient.post('/auth/refresh', {
-        refreshToken: authState.tokens.refreshToken,
+        refresh_token: authState.tokens.refreshToken,
       });
 
       if (response.success && response.data) {
         const tokenData = response.data.data || response.data;
 
-        // Store new tokens
-        await storeTokens(tokenData);
+        // Sync-be refresh returns only new access_token (not refresh_token or user)
+        const newAccessToken = tokenData.access_token || tokenData.AccessToken;
+        const expiresIn = tokenData.ExpiresIn || 3600;
+
+        // Update stored access token
+        await storage.set({
+          accessToken: newAccessToken,
+          tokenExpiry: Date.now() + expiresIn * 1000,
+        });
 
         // Update auth state
-        authState.tokens = {
-          accessToken: tokenData.AccessToken,
-          idToken: tokenData.IdToken,
-          refreshToken: tokenData.RefreshToken,
-          expiry: Date.now() + tokenData.ExpiresIn * 1000,
-        };
-
-        // Update user data from new ID token
-        authState.user = decodeIdToken(tokenData.IdToken);
+        authState.tokens.accessToken = newAccessToken;
+        authState.tokens.expiry = Date.now() + expiresIn * 1000;
 
         if (IS_DEV_MODE) {
           console.log('✅ Token refreshed successfully');
@@ -140,7 +133,7 @@ const AuthManager = (function () {
       }
 
       if (IS_DEV_MODE) {
-        console.log('❌ Token refresh failed:', response.error);
+        console.log('❌ Token refresh failed:', response.error || response.message);
       }
       return false;
     } catch (error) {
@@ -194,23 +187,58 @@ const AuthManager = (function () {
         password,
       });
 
+      // Handle new backend response format
+      // ApiClient returns: { success: true, data: <backend response> }
+      // Backend returns: { data: { AccessToken, RefreshToken, IdToken, ExpiresIn } }
       if (response.success && response.data) {
+        // Extract the actual token data from nested structure
         const tokenData = response.data.data || response.data;
 
+        const accessToken = tokenData.AccessToken;
+        const refreshToken = tokenData.RefreshToken;
+        const expiresIn = tokenData.ExpiresIn || 3600;
+
+        if (!accessToken || !refreshToken) {
+          return {
+            success: false,
+            error: 'Invalid response from server - missing tokens',
+          };
+        }
+
+        // Fetch user data from /auth/me endpoint
+        const userResponse = await self.ApiClient.get('/auth/me', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!userResponse.success || !userResponse.user) {
+          return {
+            success: false,
+            error: 'Failed to fetch user data',
+          };
+        }
+
+        const user = userResponse.user;
+
         // Store tokens
-        await storeTokens(tokenData);
+        await storeTokens({
+          accessToken,
+          refreshToken,
+          user,
+          expiresIn,
+        });
 
         // Update auth state
         authState.isAuthenticated = true;
         authState.tokens = {
-          accessToken: tokenData.AccessToken,
-          idToken: tokenData.IdToken,
-          refreshToken: tokenData.RefreshToken,
-          expiry: Date.now() + tokenData.ExpiresIn * 1000,
+          accessToken,
+          refreshToken,
+          expiry: Date.now() + expiresIn * 1000,
         };
 
-        // Decode and store user data
-        authState.user = decodeIdToken(tokenData.IdToken);
+        // Store user data
+        authState.user = user;
 
         if (IS_DEV_MODE) {
           console.log('✅ Login successful:', authState.user);
@@ -229,7 +257,7 @@ const AuthManager = (function () {
       }
 
       // Extract more detailed error message from response
-      let errorMessage = response.error || 'Login failed';
+      let errorMessage = response.error || response.message || 'Login failed';
 
       // If there are field-specific errors in details, use those
       if (response.details && response.details['field-error']) {
@@ -257,27 +285,54 @@ const AuthManager = (function () {
         console.log('🔐 Attempting signup for:', email);
       }
 
-      const response = await self.ApiClient.post('/auth/create-account', {
+      const response = await self.ApiClient.post('/auth/register', {
         email,
         password,
         first_name: firstName,
         last_name: lastName,
       });
 
-      if (response.success) {
+      if (response.success && response.data) {
+        const tokenData = response.data.data || response.data;
+
+        // Sync-be returns tokens immediately on signup (no email verification)
+        const accessToken = tokenData.access_token || tokenData.AccessToken;
+        const refreshToken = tokenData.refresh_token || tokenData.RefreshToken;
+        const user = tokenData.user;
+
+        // Default to 1 hour expiry if not provided
+        const expiresIn = tokenData.ExpiresIn || 3600;
+
+        // Store tokens
+        await storeTokens({
+          accessToken,
+          refreshToken,
+          user,
+          expiresIn,
+        });
+
+        // Update auth state
+        authState.isAuthenticated = true;
+        authState.tokens = {
+          accessToken,
+          refreshToken,
+          expiry: Date.now() + expiresIn * 1000,
+        };
+
+        // Store user data
+        authState.user = user;
+
         if (IS_DEV_MODE) {
-          console.log('✅ Signup successful, verification required');
+          console.log('✅ Signup successful, user logged in:', authState.user);
         }
 
         return {
           success: true,
-          message: 'Account created. Please verify your email.',
-          verificationCode: response.data?.verification_code,
-          user: response.data?.user,
+          user: authState.user,
         };
       }
 
-      return { success: false, error: response.error || 'Signup failed' };
+      return { success: false, error: response.error || response.message || 'Signup failed' };
     } catch (error) {
       console.error('Signup error:', error);
       return { success: false, error: error.message || 'Signup failed' };
@@ -376,11 +431,10 @@ const AuthManager = (function () {
    */
   async function storeTokens(tokenData) {
     await storage.set({
-      accessToken: tokenData.AccessToken,
-      idToken: tokenData.IdToken,
-      refreshToken: tokenData.RefreshToken,
-      tokenExpiry: Date.now() + tokenData.ExpiresIn * 1000,
-      userData: decodeIdToken(tokenData.IdToken),
+      accessToken: tokenData.accessToken,
+      refreshToken: tokenData.refreshToken,
+      tokenExpiry: Date.now() + tokenData.expiresIn * 1000,
+      userData: tokenData.user,
     });
   }
 
@@ -394,32 +448,7 @@ const AuthManager = (function () {
       tokens: null,
     };
 
-    await storage.remove(['accessToken', 'idToken', 'refreshToken', 'tokenExpiry', 'userData']);
-  }
-
-  /**
-   * Decode ID token to get user data
-   */
-  function decodeIdToken(idToken) {
-    try {
-      // Simple JWT decode (not validating signature, just extracting payload)
-      const parts = idToken.split('.');
-      if (parts.length !== 3) {
-        throw new Error('Invalid token format');
-      }
-
-      const payload = JSON.parse(atob(parts[1]));
-
-      // Extract user data from token payload
-      if (payload.data && payload.data.user) {
-        return payload.data.user;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Failed to decode ID token:', error);
-      return null;
-    }
+    await storage.remove(['accessToken', 'refreshToken', 'tokenExpiry', 'userData']);
   }
 
   /**
